@@ -1,0 +1,571 @@
+:root {
+    --erp-bg: #f5f7fb;
+    --erp-card: #ffffff;
+    --erp-border: #e5e7eb;
+    --erp-text: #0f172a;
+    --erp-muted: #64748b;
+    --erp-primary: #2563eb;
+    --erp-primary-dark: #1d4ed8;
+    --erp-sidebar: #ffffff;
+    --erp-sidebar-border: #e5e7eb;
+    --erp-active-bg: #eff6ff;
+    --erp-active-text: #1d4ed8;
+    --erp-danger: #dc2626;
+    --erp-success: #16a34a;
+    --erp-warning: #d97706;
+    --erp-radius: 12px;
+    --erp-sidebar-width: 260px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--erp-bg);
+    color: var(--erp-text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+    overflow-x: hidden;
+}
+
+.erp-app-shell {
+    min-height: 100vh;
+    display: flex;
+    background: var(--erp-bg);
+}
+
+.erp-main-wrapper {
+    flex: 1;
+    min-width: 0;
+    margin-left: var(--erp-sidebar-width);
+}
+
+.erp-page-header {
+    background: #ffffff;
+    border-bottom: 1px solid var(--erp-border);
+}
+
+.erp-page-header-inner {
+    max-width: 100%;
+    padding: 18px 26px;
+}
+
+.erp-page-content {
+    max-width: 100%;
+    padding: 0;
+}
+
+.erp-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--erp-sidebar-width);
+    height: 100vh;
+    background: var(--erp-sidebar);
+    border-right: 1px solid var(--erp-sidebar-border);
+    display: flex;
+    flex-direction: column;
+    z-index: 900;
+}
+
+.erp-sidebar-header {
+    height: 76px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--erp-border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.erp-logo-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--erp-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.erp-brand-title {
+    font-size: 15px;
+    font-weight: 900;
+    color: var(--erp-text);
+    line-height: 1.2;
+}
+
+.erp-brand-subtitle {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--erp-muted);
+    font-weight: 700;
+}
+
+.erp-sidebar-close {
+    display: none;
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    font-size: 28px;
+    line-height: 1;
+    color: var(--erp-muted);
+    cursor: pointer;
+}
+
+.erp-menu {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 12px;
+}
+
+.erp-menu-section {
+    margin-bottom: 18px;
+}
+
+.erp-menu-section-title {
+    padding: 0 10px;
+    margin-bottom: 8px;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.erp-menu-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    color: #334155;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 800;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.erp-menu-link:hover {
+    background: #f1f5f9;
+    color: var(--erp-text);
+}
+
+.erp-menu-link.active {
+    background: var(--erp-active-bg);
+    color: var(--erp-active-text);
+}
+
+.erp-menu-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 900;
+    flex-shrink: 0;
+}
+
+.erp-menu-link.active .erp-menu-icon {
+    background: #dbeafe;
+    color: var(--erp-active-text);
+}
+
+.erp-sidebar-footer {
+    border-top: 1px solid var(--erp-border);
+    padding: 12px 18px;
+}
+
+.erp-footer-title {
+    font-size: 12px;
+    font-weight: 900;
+    color: var(--erp-text);
+}
+
+.erp-footer-subtitle {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--erp-muted);
+}
+
+.erp-top-mobile-bar {
+    display: none;
+    height: 60px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--erp-border);
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    position: sticky;
+    top: 0;
+    z-index: 850;
+}
+
+.erp-mobile-menu-button {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--erp-border);
+    border-radius: 10px;
+    background: white;
+    color: var(--erp-text);
+    font-size: 20px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.erp-mobile-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--erp-text);
+    line-height: 1.1;
+}
+
+.erp-mobile-subtitle {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--erp-muted);
+    font-weight: 600;
+}
+
+.erp-mobile-overlay {
+    display: none;
+}
+
+.max-w-7xl,
+.max-w-6xl,
+.max-w-5xl,
+.max-w-4xl {
+    max-width: 100% !important;
+}
+
+.sm\:px-6 {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+}
+
+.lg\:px-8 {
+    padding-left: 22px !important;
+    padding-right: 22px !important;
+}
+
+.py-6 {
+    padding-top: 18px !important;
+    padding-bottom: 18px !important;
+}
+
+.py-4 {
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+}
+
+.bg-white {
+    border-radius: var(--erp-radius);
+    border: 1px solid var(--erp-border);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    font-size: 12px;
+}
+
+th {
+    font-weight: 800;
+}
+
+input,
+select,
+textarea,
+button {
+    font-family: inherit;
+}
+
+input,
+select,
+textarea {
+    max-width: 100%;
+}
+
+.fortune-btn-primary,
+.fortune-btn-secondary {
+    white-space: nowrap;
+}
+
+.erp-responsive-table {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.erp-responsive-table table {
+    min-width: 900px;
+}
+
+.erp-form-grid,
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.erp-two-column-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.erp-card-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.erp-card-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.erp-card-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+@media (max-width: 1280px) {
+    :root {
+        --erp-sidebar-width: 230px;
+    }
+
+    .erp-page-header-inner {
+        padding: 16px 20px;
+    }
+
+    .lg\:px-8 {
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+    }
+
+    .erp-card-grid-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .erp-form-grid,
+    .form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1024px) {
+    .erp-main-wrapper {
+        margin-left: 0;
+    }
+
+    .erp-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        z-index: 1000;
+        box-shadow: 20px 0 40px rgba(15, 23, 42, 0.20);
+    }
+
+    .erp-sidebar.open {
+        transform: translateX(0);
+    }
+
+    .erp-sidebar-close {
+        display: block;
+    }
+
+    .erp-top-mobile-bar {
+        display: flex;
+    }
+
+    .erp-mobile-overlay.show {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        z-index: 950;
+    }
+
+    .erp-page-header-inner {
+        padding: 16px;
+    }
+
+    .sm\:px-6,
+    .lg\:px-8 {
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+    }
+
+    .erp-card-grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .erp-responsive-table table {
+        min-width: 850px;
+    }
+}
+
+@media (max-width: 768px) {
+    .erp-page-header-inner {
+        padding: 14px;
+    }
+
+    .py-6,
+    .py-4 {
+        padding-top: 12px !important;
+        padding-bottom: 12px !important;
+    }
+
+    .sm\:px-6,
+    .lg\:px-8 {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    .bg-white {
+        border-radius: 10px;
+        padding: 12px !important;
+    }
+
+    .erp-form-grid,
+    .form-grid,
+    .erp-two-column-grid,
+    .erp-card-grid-4,
+    .erp-card-grid-3,
+    .erp-card-grid-2 {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    h1,
+    h2 {
+        font-size: 18px !important;
+    }
+
+    h3 {
+        font-size: 16px !important;
+    }
+
+    label {
+        font-size: 12px !important;
+    }
+
+    input,
+    select,
+    textarea {
+        font-size: 13px !important;
+        min-height: 38px;
+    }
+
+    .fortune-btn-primary,
+    .fortune-btn-secondary {
+        font-size: 13px !important;
+        padding: 8px 12px !important;
+    }
+
+    th,
+    td {
+        font-size: 11px;
+    }
+
+    .erp-responsive-table table {
+        min-width: 760px;
+    }
+
+    .erp-sidebar {
+        width: 82vw;
+        max-width: 310px;
+    }
+}
+
+@media (max-width: 480px) {
+    .erp-top-mobile-bar {
+        height: 56px;
+    }
+
+    .erp-page-header-inner {
+        padding: 12px 10px;
+    }
+
+    .erp-mobile-title {
+        font-size: 13px;
+    }
+
+    .erp-mobile-subtitle {
+        display: none;
+    }
+
+    .erp-sidebar {
+        width: 88vw;
+    }
+
+    .erp-sidebar-header {
+        height: 68px;
+        padding: 12px 14px;
+    }
+
+    .erp-logo-box {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        font-size: 14px;
+    }
+
+    .erp-brand-title {
+        font-size: 13px;
+    }
+
+    .erp-brand-subtitle {
+        font-size: 10px;
+    }
+
+    .erp-menu {
+        padding: 12px 8px;
+    }
+
+    .erp-menu-link {
+        min-height: 36px;
+        font-size: 12px;
+        padding: 7px 9px;
+    }
+
+    .erp-menu-section-title {
+        font-size: 10px;
+    }
+
+    .bg-white {
+        padding: 10px !important;
+    }
+
+    .fortune-btn-primary,
+    .fortune-btn-secondary {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .erp-responsive-table table {
+        min-width: 680px;
+    }
+}
