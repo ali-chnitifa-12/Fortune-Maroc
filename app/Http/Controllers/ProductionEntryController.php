@@ -22,47 +22,55 @@ class ProductionEntryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ProductionEntry::with([
-            'zone',
-            'productionLine',
-            'shift',
-            'product',
-            'approver',
-        ]);
+        $query = ProductionEntry::query()
+            ->select('production_entries.*')
+            ->with([
+                'zone',
+                'productionLine',
+                'shift',
+                'product',
+                'approver',
+                'productionPlan',
+            ])
+            ->leftJoin('zones', 'zones.id', '=', 'production_entries.zone_id')
+            ->leftJoin('production_lines', 'production_lines.id', '=', 'production_entries.production_line_id')
+            ->leftJoin('shifts', 'shifts.id', '=', 'production_entries.shift_id')
+            ->leftJoin('products', 'products.id', '=', 'production_entries.product_id')
+            ->leftJoin('production_plans', 'production_plans.id', '=', 'production_entries.production_plan_id');
 
         $this->applyUserScope($query);
 
         if ($request->filled('date_from')) {
-            $query->whereDate('production_date', '>=', $request->date_from);
+            $query->whereDate('production_entries.production_date', '>=', $request->date_from);
         }
 
         if ($request->filled('date_to')) {
-            $query->whereDate('production_date', '<=', $request->date_to);
+            $query->whereDate('production_entries.production_date', '<=', $request->date_to);
         }
 
         if ($request->filled('zone_id') && auth()->user()->canAccessZone((int) $request->zone_id)) {
-            $query->where('zone_id', $request->zone_id);
+            $query->where('production_entries.zone_id', $request->zone_id);
         }
 
         if ($request->filled('production_line_id') && auth()->user()->canAccessProductionLine((int) $request->production_line_id)) {
-            $query->where('production_line_id', $request->production_line_id);
+            $query->where('production_entries.production_line_id', $request->production_line_id);
         }
 
         if ($request->filled('product_id')) {
-            $query->where('product_id', $request->product_id);
+            $query->where('production_entries.product_id', $request->product_id);
         }
 
         if ($request->filled('shift_id')) {
-            $query->where('shift_id', $request->shift_id);
+            $query->where('production_entries.shift_id', $request->shift_id);
         }
 
         if ($request->filled('entry_status')) {
-            $query->where('entry_status', $request->entry_status);
+            $query->where('production_entries.entry_status', $request->entry_status);
         }
 
+        $this->applySorting($query, $request);
+
         $entries = $query
-            ->orderByDesc('production_date')
-            ->orderByDesc('hour_start')
             ->paginate(20)
             ->withQueryString();
 
@@ -80,8 +88,49 @@ class ProductionEntryController extends Controller
                 'product_id',
                 'shift_id',
                 'entry_status',
+                'sort',
+                'direction',
             ]),
         ]);
+    }
+
+    private function applySorting($query, Request $request): void
+    {
+        $allowedSorts = [
+            'entry_code' => 'production_entries.entry_code',
+            'plan_code' => 'production_plans.plan_code',
+            'production_date' => 'production_entries.production_date',
+            'hour' => 'production_entries.hour_start',
+            'shift' => 'shifts.code',
+            'zone' => 'zones.code',
+            'line' => 'production_lines.code',
+            'product' => 'products.code',
+            'planned_qty' => 'production_entries.planned_qty',
+            'actual_qty' => 'production_entries.actual_qty',
+            'good_qty' => 'production_entries.good_qty',
+            'rejected_qty' => 'production_entries.rejected_qty',
+            'chute_qty' => 'production_entries.chute_qty',
+            'stop_duration_min' => 'production_entries.stop_duration_min',
+            'oee' => 'production_entries.oee',
+            'entry_status' => 'production_entries.entry_status',
+            'created_at' => 'production_entries.created_at',
+        ];
+
+        $sort = $request->get('sort', 'production_date');
+        $direction = strtolower($request->get('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if (!array_key_exists($sort, $allowedSorts)) {
+            $sort = 'production_date';
+            $direction = 'desc';
+        }
+
+        $query->orderBy($allowedSorts[$sort], $direction);
+
+        if ($sort !== 'hour') {
+            $query->orderBy('production_entries.hour_start', 'desc');
+        }
+
+        $query->orderBy('production_entries.id', 'desc');
     }
 
     public function create()
@@ -174,6 +223,7 @@ class ProductionEntryController extends Controller
             'productionLine.machines',
             'shift',
             'product',
+            'productionPlan',
             'downtimes.machine',
             'downtimes.downtimeCategory',
             'downtimes.downtimeReason',
@@ -589,13 +639,16 @@ class ProductionEntryController extends Controller
             'shift',
             'product',
             'approver',
+            'productionPlan',
         ]);
 
         return [
             'source' => 'production_web_app',
             'event_type' => 'production_entry',
             'entry_id' => $entry->id,
+            'entry_code' => $entry->entry_code,
             'production_plan_id' => $entry->production_plan_id,
+            'plan_code' => $entry->productionPlan?->plan_code,
             'production_date' => $entry->production_date?->format('Y-m-d'),
             'zone' => $entry->zone?->code,
             'zone_name' => $entry->zone?->name,
@@ -646,6 +699,7 @@ class ProductionEntryController extends Controller
             'source' => 'production_web_app',
             'event_type' => 'machine_stop',
             'entry_id' => $entry->id,
+            'entry_code' => $entry->entry_code,
             'downtime_id' => $downtime->id,
             'machine_status' => 'in_repair',
             'active_stop' => 1,
@@ -694,6 +748,7 @@ class ProductionEntryController extends Controller
             'source' => 'production_web_app',
             'event_type' => 'machine_fixed',
             'entry_id' => $entry->id,
+            'entry_code' => $entry->entry_code,
             'downtime_id' => $downtime->id,
             'machine_status' => 'active',
             'active_stop' => 0,
@@ -787,7 +842,7 @@ class ProductionEntryController extends Controller
         }
 
         if ($user->isOperator()) {
-            $query->where('production_line_id', $user->production_line_id ?: 0);
+            $query->where('production_entries.production_line_id', $user->production_line_id ?: 0);
             return;
         }
 
@@ -797,7 +852,7 @@ class ProductionEntryController extends Controller
             if (empty($zoneIds)) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->whereIn('zone_id', $zoneIds);
+                $query->whereIn('production_entries.zone_id', $zoneIds);
             }
 
             return;

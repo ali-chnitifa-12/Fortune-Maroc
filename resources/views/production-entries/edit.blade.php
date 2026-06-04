@@ -66,6 +66,15 @@
 
                     <div class="entry-grid">
                         <div>
+                        <label>Entry Code</label>
+                        <input type="text" value="{{ $entry->entry_code ?? '-' }}" readonly>
+                        </div>
+
+                        <div>
+                            <label>Plan Code</label>
+                            <input type="text" value="{{ $entry->productionPlan?->plan_code ?? '-' }}" readonly>
+                        </div>
+                        <div>
                             <label>Production Date</label>
                             <input type="text" value="{{ $entry->production_date?->format('d/m/Y') }}" readonly>
                         </div>

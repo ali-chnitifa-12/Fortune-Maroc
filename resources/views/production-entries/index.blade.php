@@ -14,6 +14,29 @@
         </div>
     </x-slot>
 
+    @php
+        $sortField = request('sort', 'production_date');
+        $sortDirection = request('direction', 'desc');
+
+        $sortUrl = function ($field) use ($sortField, $sortDirection) {
+            $nextDirection = ($sortField === $field && $sortDirection === 'asc') ? 'desc' : 'asc';
+
+            return request()->fullUrlWithQuery([
+                'sort' => $field,
+                'direction' => $nextDirection,
+                'page' => 1,
+            ]);
+        };
+
+        $sortIcon = function ($field) use ($sortField, $sortDirection) {
+            if ($sortField !== $field) {
+                return '↕';
+            }
+
+            return $sortDirection === 'asc' ? '↑' : '↓';
+        };
+    @endphp
+
     <div class="erp-page-wrap">
         @if(session('success'))
             <div class="fortune-success">{{ session('success') }}</div>
@@ -103,6 +126,9 @@
                     </div>
                 </div>
 
+                <input type="hidden" name="sort" value="{{ $sortField }}">
+                <input type="hidden" name="direction" value="{{ $sortDirection }}">
+
                 <div class="entry-filter-actions">
                     <button type="submit" class="erp-btn erp-btn-primary">
                         Apply Filters
@@ -120,31 +146,39 @@
                 Results: {{ $entries->total() }}
             </div>
 
-            <div class="erp-responsive-table">
-                <table class="erp-table">
+            <div class="erp-responsive-table clean-table-wrap">
+                <table class="erp-table clean-entry-table">
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>Hour</th>
-                            <th>Shift</th>
-                            <th>Zone</th>
-                            <th>Line</th>
-                            <th>Product</th>
-                            <th>Planned</th>
-                            <th>Actual</th>
-                            <th>Good</th>
-                            <th>Rejected</th>
-                            <th>Chute</th>
-                            <th>Stop</th>
-                            <th>OEE</th>
-                            <th>Status</th>
-                            <th class="text-right">Actions</th>
+                            <th><a class="sort-link" href="{{ $sortUrl('entry_code') }}">Code {{ $sortIcon('entry_code') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('production_date') }}">Date {{ $sortIcon('production_date') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('hour') }}">Hour {{ $sortIcon('hour') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('shift') }}">Shift {{ $sortIcon('shift') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('zone') }}">Zone {{ $sortIcon('zone') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('line') }}">Line {{ $sortIcon('line') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('product') }}">Product {{ $sortIcon('product') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('planned_qty') }}">Planned {{ $sortIcon('planned_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('actual_qty') }}">Actual {{ $sortIcon('actual_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('good_qty') }}">Good {{ $sortIcon('good_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('rejected_qty') }}">Rejected {{ $sortIcon('rejected_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('chute_qty') }}">Chute {{ $sortIcon('chute_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('stop_duration_min') }}">Stop {{ $sortIcon('stop_duration_min') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('oee') }}">OEE {{ $sortIcon('oee') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('entry_status') }}">Status {{ $sortIcon('entry_status') }}</a></th>
+                            <th class="actions-column">Actions</th>
                         </tr>
                     </thead>
 
                     <tbody>
                         @forelse($entries as $entry)
                             <tr>
+                                <td>
+                                    <strong>{{ $entry->entry_code ?? '-' }}</strong>
+                                    @if($entry->productionPlan?->plan_code)
+                                        <div class="erp-muted-small">{{ $entry->productionPlan?->plan_code }}</div>
+                                    @endif
+                                </td>
+
                                 <td>{{ $entry->production_date?->format('Y-m-d') }}</td>
 
                                 <td>
@@ -184,56 +218,63 @@
                                     @elseif($entry->entry_status === 'finished')
                                         <span class="erp-pill erp-pill-info">Finished</span>
                                     @elseif($entry->entry_status === 'sent_to_thingsboard')
-                                        <span class="erp-pill erp-pill-success">Sent To ThingsBoard</span>
+                                        <span class="erp-pill erp-pill-success">Sent</span>
                                     @else
                                         <span class="erp-pill">{{ ucwords(str_replace('_', ' ', $entry->entry_status)) }}</span>
                                     @endif
                                 </td>
 
-                                <td class="text-right">
-                                    @if($entry->entry_status === 'draft')
-                                        <a href="{{ route('production-entries.edit', $entry) }}" class="erp-link">
-                                            Open
-                                        </a>
-                                    @elseif($entry->entry_status === 'finished')
-                                        <a href="{{ route('production-entries.edit', $entry) }}" class="erp-link">
-                                            Review
-                                        </a>
+                                <td class="actions-column">
+                                    <div class="action-dropdown">
+                                        <button type="button" class="action-menu-button" onclick="toggleActionMenu(event, 'entry-actions-{{ $entry->id }}')">
+                                            Actions
+                                            <span>▾</span>
+                                        </button>
 
-                                        @if(auth()->user()?->canApproveProductionEntries())
-                                            <form method="POST"
-                                                  action="{{ route('production-entries.approve', $entry) }}"
-                                                  style="display:inline;"
-                                                  onsubmit="return confirm('Approve this entry and send it automatically to ThingsBoard?')">
-                                                @csrf
-                                                <button type="submit" class="erp-action-button">
-                                                    Approve & Send
-                                                </button>
-                                            </form>
-                                        @endif
-                                    @elseif($entry->entry_status === 'sent_to_thingsboard')
-                                        <a href="{{ route('production-entries.edit', $entry) }}" class="erp-link">
-                                            View
-                                        </a>
-                                    @endif
+                                        <div id="entry-actions-{{ $entry->id }}" class="action-menu">
+                                            @if($entry->entry_status === 'draft')
+                                                <a href="{{ route('production-entries.edit', $entry) }}" class="action-menu-item">
+                                                    Open Entry
+                                                </a>
+                                            @elseif($entry->entry_status === 'finished')
+                                                <a href="{{ route('production-entries.edit', $entry) }}" class="action-menu-item">
+                                                    Review Entry
+                                                </a>
 
-                                    @if(auth()->user()?->canDeleteProductionEntries() && $entry->entry_status !== 'sent_to_thingsboard')
-                                        <form method="POST"
-                                              action="{{ route('production-entries.destroy', $entry) }}"
-                                              style="display:inline;"
-                                              onsubmit="return confirm('Delete this production entry?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="erp-delete-link">
-                                                Delete
-                                            </button>
-                                        </form>
-                                    @endif
+                                                @if(auth()->user()?->canApproveProductionEntries())
+                                                    <form method="POST"
+                                                          action="{{ route('production-entries.approve', $entry) }}"
+                                                          onsubmit="return confirm('Approve this entry and send it automatically to ThingsBoard?')">
+                                                        @csrf
+                                                        <button type="submit" class="action-menu-item action-menu-success">
+                                                            Approve & Send
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                            @elseif($entry->entry_status === 'sent_to_thingsboard')
+                                                <a href="{{ route('production-entries.edit', $entry) }}" class="action-menu-item">
+                                                    View Entry
+                                                </a>
+                                            @endif
+
+                                            @if(auth()->user()?->canDeleteProductionEntries() && $entry->entry_status !== 'sent_to_thingsboard')
+                                                <form method="POST"
+                                                      action="{{ route('production-entries.destroy', $entry) }}"
+                                                      onsubmit="return confirm('Delete this production entry?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="action-menu-item action-menu-danger">
+                                                        Delete Entry
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="15" class="erp-empty">
+                                <td colspan="16" class="erp-empty">
                                     No production entries found.
                                 </td>
                             </tr>
@@ -283,18 +324,124 @@
             margin-top: 12px;
         }
 
-        .erp-action-button {
-            margin-left: 8px;
-            border: 0;
-            background: transparent;
-            color: #2563eb;
-            font-size: 13px;
+        .clean-table-wrap {
+            overflow-x: auto;
+            overflow-y: visible;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+
+        .clean-entry-table {
+            min-width: 1350px;
+        }
+
+        .clean-entry-table th,
+        .clean-entry-table td {
+            vertical-align: middle;
+        }
+
+        .sort-link {
+            color: #0f172a;
+            text-decoration: none;
             font-weight: 900;
+            white-space: nowrap;
+        }
+
+        .sort-link:hover {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+
+        .actions-column {
+            width: 120px;
+            min-width: 120px;
+            text-align: right;
+            position: relative;
+        }
+
+        .action-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .action-menu-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 32px;
+            padding: 7px 12px;
+            border: 1px solid #dbeafe;
+            border-radius: 10px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 900;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .action-menu-button:hover {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .action-menu {
+            display: none;
+            position: absolute;
+            top: 38px;
+            right: 0;
+            z-index: 999;
+            width: 180px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+            padding: 6px;
+            text-align: left;
+        }
+
+        .action-menu.active {
+            display: block;
+        }
+
+        .action-menu-item {
+            display: block;
+            width: 100%;
+            padding: 9px 10px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+            text-align: left;
+            text-decoration: none;
             cursor: pointer;
         }
 
-        .erp-action-button:hover {
-            text-decoration: underline;
+        .action-menu-item:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .action-menu-success {
+            color: #15803d;
+        }
+
+        .action-menu-success:hover {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .action-menu-danger {
+            color: #dc2626;
+        }
+
+        .action-menu-danger:hover {
+            background: #fee2e2;
+            color: #991b1b;
         }
 
         .erp-pill-info {
@@ -305,6 +452,10 @@
         @media (max-width: 1400px) {
             .entry-filter-grid {
                 grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+
+            .clean-entry-table {
+                min-width: 1300px;
             }
         }
 
@@ -326,6 +477,36 @@
     </style>
 
     <script>
+        function toggleActionMenu(event, menuId) {
+            event.stopPropagation();
+
+            document.querySelectorAll('.action-menu').forEach(menu => {
+                if (menu.id !== menuId) {
+                    menu.classList.remove('active');
+                }
+            });
+
+            const menu = document.getElementById(menuId);
+
+            if (menu) {
+                menu.classList.toggle('active');
+            }
+        }
+
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.action-menu').forEach(menu => {
+                menu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                document.querySelectorAll('.action-menu').forEach(menu => {
+                    menu.classList.remove('active');
+                });
+            }
+        });
+
         const zoneFilter = document.getElementById('zone_filter');
         const lineFilter = document.getElementById('line_filter');
 

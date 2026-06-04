@@ -4,12 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class ProductionEntry extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'entry_code',
         'production_plan_id',
         'zone_id',
         'production_line_id',
@@ -62,6 +64,32 @@ class ProductionEntry extends Model
         'completed_at' => 'datetime',
         'approved_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProductionEntry $entry) {
+            if (empty($entry->entry_code)) {
+                $entry->entry_code = self::generateNextCode();
+            }
+        });
+    }
+
+    private static function generateNextCode(): string
+    {
+        $lastCode = DB::table('production_entries')
+            ->whereNotNull('entry_code')
+            ->where('entry_code', 'like', 'E%')
+            ->orderByRaw('CAST(SUBSTRING(entry_code, 2) AS UNSIGNED) DESC')
+            ->value('entry_code');
+
+        $nextNumber = 1;
+
+        if ($lastCode) {
+            $nextNumber = ((int) substr($lastCode, 1)) + 1;
+        }
+
+        return 'E' . str_pad((string) $nextNumber, 9, '0', STR_PAD_LEFT);
+    }
 
     public function productionPlan()
     {

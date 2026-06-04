@@ -24,47 +24,53 @@ class ProductionPlanController extends Controller
             abort(403);
         }
 
-        $query = ProductionPlan::with([
-            'zone',
-            'productionLine',
-            'shift',
-            'product',
-            'entries',
-        ]);
+        $query = ProductionPlan::query()
+            ->select('production_plans.*')
+            ->with([
+                'zone',
+                'productionLine',
+                'shift',
+                'product',
+                'entries',
+            ])
+            ->leftJoin('zones', 'zones.id', '=', 'production_plans.zone_id')
+            ->leftJoin('production_lines', 'production_lines.id', '=', 'production_plans.production_line_id')
+            ->leftJoin('shifts', 'shifts.id', '=', 'production_plans.shift_id')
+            ->leftJoin('products', 'products.id', '=', 'production_plans.product_id');
 
         $this->applyUserScope($query);
 
         if ($request->filled('date_from')) {
-            $query->whereDate('plan_date', '>=', $request->date_from);
+            $query->whereDate('production_plans.plan_date', '>=', $request->date_from);
         }
 
         if ($request->filled('date_to')) {
-            $query->whereDate('plan_date', '<=', $request->date_to);
+            $query->whereDate('production_plans.plan_date', '<=', $request->date_to);
         }
 
         if ($request->filled('zone_id') && auth()->user()->canAccessZone((int) $request->zone_id)) {
-            $query->where('zone_id', $request->zone_id);
+            $query->where('production_plans.zone_id', $request->zone_id);
         }
 
         if ($request->filled('production_line_id') && auth()->user()->canAccessProductionLine((int) $request->production_line_id)) {
-            $query->where('production_line_id', $request->production_line_id);
+            $query->where('production_plans.production_line_id', $request->production_line_id);
         }
 
         if ($request->filled('product_id')) {
-            $query->where('product_id', $request->product_id);
+            $query->where('production_plans.product_id', $request->product_id);
         }
 
         if ($request->filled('shift_id')) {
-            $query->where('shift_id', $request->shift_id);
+            $query->where('production_plans.shift_id', $request->shift_id);
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('production_plans.status', $request->status);
         }
 
+        $this->applySorting($query, $request);
+
         $plans = $query
-            ->orderByDesc('plan_date')
-            ->orderByDesc('hour_start')
             ->paginate(20)
             ->withQueryString();
 
@@ -83,8 +89,43 @@ class ProductionPlanController extends Controller
                 'product_id',
                 'shift_id',
                 'status',
+                'sort',
+                'direction',
             ]),
         ]);
+    }
+
+    private function applySorting($query, Request $request): void
+    {
+        $allowedSorts = [
+            'plan_code' => 'production_plans.plan_code',
+            'plan_date' => 'production_plans.plan_date',
+            'hour' => 'production_plans.hour_start',
+            'shift' => 'shifts.code',
+            'zone' => 'zones.code',
+            'line' => 'production_lines.code',
+            'product' => 'products.code',
+            'planned_qty' => 'production_plans.planned_qty',
+            'target_oee' => 'production_plans.target_oee',
+            'status' => 'production_plans.status',
+            'created_at' => 'production_plans.created_at',
+        ];
+
+        $sort = $request->get('sort', 'plan_date');
+        $direction = strtolower($request->get('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if (!array_key_exists($sort, $allowedSorts)) {
+            $sort = 'plan_date';
+            $direction = 'desc';
+        }
+
+        $query->orderBy($allowedSorts[$sort], $direction);
+
+        if ($sort !== 'hour') {
+            $query->orderBy('production_plans.hour_start', 'desc');
+        }
+
+        $query->orderBy('production_plans.id', 'desc');
     }
 
     public function create()
@@ -343,7 +384,7 @@ class ProductionPlanController extends Controller
         }
 
         if ($user->isOperator()) {
-            $query->where('production_line_id', $user->production_line_id ?: 0);
+            $query->where('production_plans.production_line_id', $user->production_line_id ?: 0);
             return;
         }
 
@@ -353,7 +394,7 @@ class ProductionPlanController extends Controller
             if (empty($zoneIds)) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->whereIn('zone_id', $zoneIds);
+                $query->whereIn('production_plans.zone_id', $zoneIds);
             }
 
             return;

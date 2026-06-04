@@ -4,12 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class ProductionPlan extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'plan_code',
         'plan_date',
         'zone_id',
         'production_line_id',
@@ -30,6 +32,32 @@ class ProductionPlan extends Model
         'planned_qty' => 'decimal:2',
         'target_oee' => 'decimal:2',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProductionPlan $plan) {
+            if (empty($plan->plan_code)) {
+                $plan->plan_code = self::generateNextCode();
+            }
+        });
+    }
+
+    private static function generateNextCode(): string
+    {
+        $lastCode = DB::table('production_plans')
+            ->whereNotNull('plan_code')
+            ->where('plan_code', 'like', 'P%')
+            ->orderByRaw('CAST(SUBSTRING(plan_code, 2) AS UNSIGNED) DESC')
+            ->value('plan_code');
+
+        $nextNumber = 1;
+
+        if ($lastCode) {
+            $nextNumber = ((int) substr($lastCode, 1)) + 1;
+        }
+
+        return 'P' . str_pad((string) $nextNumber, 9, '0', STR_PAD_LEFT);
+    }
 
     public function zone()
     {
