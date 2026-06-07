@@ -77,7 +77,7 @@ class UserManagementController extends Controller
             ]);
         }
 
-        if (in_array($role, ['responsable_production', 'admin'], true)) {
+        if (in_array($role, ['responsable_production', 'admin', 'rh'], true)) {
             $user->assignedZones()->sync([]);
             $user->update([
                 'zone_id' => null,
@@ -141,7 +141,7 @@ class UserManagementController extends Controller
             $payload['zone_id'] = collect($data['zone_ids'] ?? [])->first() ?: null;
         }
 
-        if (in_array($role, ['responsable_production', 'admin'], true)) {
+        if (in_array($role, ['responsable_production', 'admin', 'rh'], true)) {
             $payload['production_line_id'] = null;
             $payload['zone_id'] = null;
         }
@@ -196,6 +196,7 @@ class UserManagementController extends Controller
                     'operator',
                     'responsable_production',
                     'supervisor',
+                    'rh',
                     'admin',
                 ]),
             ],

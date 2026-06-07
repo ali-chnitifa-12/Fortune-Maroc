@@ -76,6 +76,11 @@ class User extends Authenticatable
         return $this->roleValue() === 'operator';
     }
 
+    public function isRh(): bool
+    {
+        return $this->roleValue() === 'rh';
+    }
+
     public function canViewDashboard(): bool
     {
         return in_array($this->roleValue(), [
@@ -201,6 +206,19 @@ class User extends Authenticatable
         return $this->isAdmin();
     }
 
+    public function canViewAbsences(): bool
+    {
+        return in_array($this->roleValue(), [
+            'admin',
+            'rh',
+        ], true);
+    }
+
+    public function canManageAbsences(): bool
+    {
+        return $this->canViewAbsences();
+    }
+
     public function assignedZoneIds(): array
     {
         if ($this->isAdmin() || $this->isResponsableProduction()) {
@@ -295,6 +313,10 @@ class User extends Authenticatable
             return $this->productionLine
                 ? 'Line: ' . $this->productionLine->code
                 : 'No line assigned';
+        }
+
+        if ($this->isRh()) {
+            return 'Human resources';
         }
 
         return '-';

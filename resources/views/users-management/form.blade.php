@@ -26,6 +26,7 @@
             <option value="operator" {{ $currentRole === 'operator' ? 'selected' : '' }}>Operator</option>
             <option value="responsable_production" {{ $currentRole === 'responsable_production' ? 'selected' : '' }}>Responsable Production</option>
             <option value="supervisor" {{ $currentRole === 'supervisor' ? 'selected' : '' }}>Supervisor</option>
+            <option value="rh" {{ $currentRole === 'rh' ? 'selected' : '' }}>RH</option>
             <option value="admin" {{ $currentRole === 'admin' ? 'selected' : '' }}>Admin</option>
         </select>
     </div>
@@ -66,6 +67,13 @@
         <label>Assignment</label>
         <div class="readonly-box">
             This role has access to all zones and all production lines.
+        </div>
+    </div>
+
+    <div id="rh_access_block">
+        <label>Assignment</label>
+        <div class="readonly-box">
+            RH has access only to human resources modules, including absences.
         </div>
     </div>
 
@@ -151,6 +159,7 @@
     const operatorLineBlock = document.getElementById('operator_line_block');
     const supervisorZoneBlock = document.getElementById('supervisor_zone_block');
     const fullAccessBlock = document.getElementById('full_access_block');
+    const rhAccessBlock = document.getElementById('rh_access_block');
 
     function refreshAssignmentFields() {
         const role = roleSelect.value;
@@ -158,6 +167,7 @@
         operatorLineBlock.style.display = 'none';
         supervisorZoneBlock.style.display = 'none';
         fullAccessBlock.style.display = 'none';
+        rhAccessBlock.style.display = 'none';
 
         if (role === 'operator') {
             operatorLineBlock.style.display = 'block';
@@ -166,6 +176,11 @@
 
         if (role === 'supervisor') {
             supervisorZoneBlock.style.display = 'block';
+            return;
+        }
+
+        if (role === 'rh') {
+            rhAccessBlock.style.display = 'block';
             return;
         }
 
