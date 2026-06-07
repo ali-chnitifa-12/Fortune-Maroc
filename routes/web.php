@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\DowntimeCategoryController;
 use App\Http\Controllers\DowntimeReasonController;
 use App\Http\Controllers\LineStatusController;
@@ -171,6 +172,14 @@ Route::middleware(['auth'])->group(function () {
     */
 
     Route::resource('thingsboard-devices', ThingsboardDeviceController::class)->except(['show']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Human Resources
+    |--------------------------------------------------------------------------
+    */
+
+    Route::resource('absences', AbsenceController::class)->except(['show']);
 
     /*
     |--------------------------------------------------------------------------
