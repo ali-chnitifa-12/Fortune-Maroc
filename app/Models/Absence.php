@@ -13,6 +13,7 @@ class Absence extends Model
         'user_id',
         'employee_id',
         'employee_name',
+        'employee_matricule',
         'absence_date',
         'shift',
         'reason',

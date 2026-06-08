@@ -70,7 +70,7 @@ class AbsenceController extends Controller
             foreach ($absences as $absence) {
                 fputcsv($handle, [
                     $absence->employee_name,
-                    $absence->employee?->matricule ?: '',
+                    $absence->employee_matricule ?: ($absence->employee?->matricule ?: ''),
                     $absence->employee?->department ?: '',
                     $absence->employee?->position ?: '',
                     "\t" . $absence->absence_date?->format('Y-m-d'),
@@ -115,6 +115,7 @@ class AbsenceController extends Controller
             'user_id' => null,
             'employee_id' => $selectedEmployee?->id,
             'employee_name' => $selectedEmployee?->full_name ?: $data['employee_name'],
+            'employee_matricule' => $selectedEmployee?->matricule ?: ($data['employee_matricule'] ?? null),
             'absence_date' => $data['absence_date'],
             'shift' => $data['shift'] ?? null,
             'reason' => $data['reason'],
@@ -153,6 +154,7 @@ class AbsenceController extends Controller
             'user_id' => null,
             'employee_id' => $selectedEmployee?->id,
             'employee_name' => $selectedEmployee?->full_name ?: $data['employee_name'],
+            'employee_matricule' => $selectedEmployee?->matricule ?: ($data['employee_matricule'] ?? null),
             'absence_date' => $data['absence_date'],
             'shift' => $data['shift'] ?? null,
             'reason' => $data['reason'],
@@ -181,6 +183,7 @@ class AbsenceController extends Controller
         if ($request->filled('employee')) {
             $query->where(function ($q) use ($request) {
                 $q->where('employee_name', 'like', '%' . $request->employee . '%')
+                    ->orWhere('employee_matricule', 'like', '%' . $request->employee . '%')
                     ->orWhereHas('employee', function ($employeeQuery) use ($request) {
                         $employeeQuery->where('full_name', 'like', '%' . $request->employee . '%')
                             ->orWhere('matricule', 'like', '%' . $request->employee . '%')
@@ -218,6 +221,7 @@ class AbsenceController extends Controller
         return $request->validate([
             'employee_id' => ['nullable', 'exists:employees,id'],
             'employee_name' => ['required_without:employee_id', 'nullable', 'string', 'max:255'],
+            'employee_matricule' => ['nullable', 'string', 'max:100'],
             'absence_date' => ['required', 'date'],
             'shift' => ['nullable', 'string', 'max:50'],
             'reason' => ['required', 'string', 'max:100'],

@@ -1,11 +1,17 @@
 @php
     $currentEmployeeId = old('employee_id', $absence->employee_id ?? '');
     $currentEmployeeName = old('employee_name', $absence->employee_name ?? '');
+    $currentEmployeeMatricule = old('employee_matricule', $absence->employee_matricule ?? '');
     $currentDate = old('absence_date', optional($absence->absence_date ?? null)->format('Y-m-d') ?? now()->toDateString());
     $currentShift = old('shift', $absence->shift ?? '');
     $currentReason = old('reason', $absence->reason ?? '');
     $currentHours = old('hours', $absence->hours ?? '');
     $currentComment = old('comment', $absence->comment ?? '');
+
+    if (empty($currentEmployeeMatricule) && !empty($currentEmployeeId) && isset($employees)) {
+        $selectedEmployee = $employees->firstWhere('id', (int) $currentEmployeeId);
+        $currentEmployeeMatricule = $selectedEmployee?->matricule ?? '';
+    }
 @endphp
 
 <div class="absence-form-grid">
@@ -17,6 +23,7 @@
                 <option
                     value="{{ $employee->id }}"
                     data-name="{{ $employee->full_name }}"
+                    data-matricule="{{ $employee->matricule }}"
                     {{ (string) $currentEmployeeId === (string) $employee->id ? 'selected' : '' }}
                 >
                     {{ $employee->full_name }}
@@ -26,6 +33,20 @@
                 </option>
             @endforeach
         </select>
+    </div>
+
+    <div>
+        <label>Matricule</label>
+        <input
+            type="text"
+            name="employee_matricule"
+            id="employee_matricule_input"
+            value="{{ $currentEmployeeMatricule }}"
+            placeholder="Matricule"
+        >
+        <div class="erp-help-text">
+            Le matricule peut être rempli automatiquement ou saisi manuellement.
+        </div>
     </div>
 
     <div>
@@ -167,19 +188,24 @@
 <script>
     const employeeSelect = document.getElementById('employee_select');
     const employeeNameInput = document.getElementById('employee_name_input');
+    const employeeMatriculeInput = document.getElementById('employee_matricule_input');
 
-    function syncEmployeeName() {
+    function syncEmployeeFields() {
         const selectedOption = employeeSelect.options[employeeSelect.selectedIndex];
 
         if (!selectedOption || !selectedOption.value) {
             employeeNameInput.readOnly = false;
+            employeeMatriculeInput.readOnly = false;
             return;
         }
 
         employeeNameInput.value = selectedOption.dataset.name || '';
         employeeNameInput.readOnly = true;
+
+        employeeMatriculeInput.value = selectedOption.dataset.matricule || '';
+        employeeMatriculeInput.readOnly = false;
     }
 
-    employeeSelect.addEventListener('change', syncEmployeeName);
-    syncEmployeeName();
+    employeeSelect.addEventListener('change', syncEmployeeFields);
+    syncEmployeeFields();
 </script>
