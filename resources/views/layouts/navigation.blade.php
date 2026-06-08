@@ -27,37 +27,39 @@
             </div>
         @endif
 
-        <div class="menu-section">
-            <div class="menu-section-title">PRODUCTION</div>
+      @if(!$user?->isRh())
+    <div class="menu-section">
+        <div class="menu-section-title">PRODUCTION</div>
 
-            <a href="{{ route('production-entries.index') }}"
-               class="menu-link {{ request()->routeIs('production-entries.*') ? 'active' : '' }}">
-                <span class="menu-icon">P</span>
-                <span class="menu-text">Production Entries</span>
+        <a href="{{ route('production-entries.index') }}"
+           class="menu-link {{ request()->routeIs('production-entries.*') ? 'active' : '' }}">
+            <span class="menu-icon">P</span>
+            <span class="menu-text">Production Entries</span>
+        </a>
+
+        <a href="{{ route('production-plans.index') }}"
+           class="menu-link {{ request()->routeIs('production-plans.*') ? 'active' : '' }}">
+            <span class="menu-icon">PL</span>
+            <span class="menu-text">Production Planning</span>
+        </a>
+
+        @if($user?->canViewMachineStatus())
+            <a href="{{ route('machine-status.index') }}"
+               class="menu-link {{ request()->routeIs('machine-status.*') ? 'active' : '' }}">
+                <span class="menu-icon">MS</span>
+                <span class="menu-text">Machine Status</span>
             </a>
+        @endif
 
-            <a href="{{ route('production-plans.index') }}"
-               class="menu-link {{ request()->routeIs('production-plans.*') ? 'active' : '' }}">
-                <span class="menu-icon">PL</span>
-                <span class="menu-text">Production Planning</span>
+        @if($user?->canViewLineKpiBoard())
+            <a href="{{ route('line-status.index') }}"
+               class="menu-link {{ request()->routeIs('line-status.*') ? 'active' : '' }}">
+                <span class="menu-icon">LK</span>
+                <span class="menu-text">Line KPI Board</span>
             </a>
-
-            @if($user?->canViewMachineStatus())
-                <a href="{{ route('machine-status.index') }}"
-                   class="menu-link {{ request()->routeIs('machine-status.*') ? 'active' : '' }}">
-                    <span class="menu-icon">MS</span>
-                    <span class="menu-text">Machine Status</span>
-                </a>
-            @endif
-
-            @if($user?->canViewLineKpiBoard())
-                <a href="{{ route('line-status.index') }}"
-                   class="menu-link {{ request()->routeIs('line-status.*') ? 'active' : '' }}">
-                    <span class="menu-icon">LK</span>
-                    <span class="menu-text">Line KPI Board</span>
-                </a>
-            @endif
-        </div>
+        @endif
+    </div>
+@endif
 
         @if($user?->canViewMasterData())
             <div class="menu-section">
