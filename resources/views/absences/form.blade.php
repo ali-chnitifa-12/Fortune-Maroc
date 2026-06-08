@@ -1,4 +1,5 @@
 @php
+    $currentEmployeeId = old('employee_id', $absence->employee_id ?? '');
     $currentEmployeeName = old('employee_name', $absence->employee_name ?? '');
     $currentDate = old('absence_date', optional($absence->absence_date ?? null)->format('Y-m-d') ?? now()->toDateString());
     $currentShift = old('shift', $absence->shift ?? '');
@@ -9,14 +10,36 @@
 
 <div class="absence-form-grid">
     <div>
+        <label>Employé enregistré</label>
+        <select name="employee_id" id="employee_select">
+            <option value="">Saisie manuelle</option>
+            @foreach($employees as $employee)
+                <option
+                    value="{{ $employee->id }}"
+                    data-name="{{ $employee->full_name }}"
+                    {{ (string) $currentEmployeeId === (string) $employee->id ? 'selected' : '' }}
+                >
+                    {{ $employee->full_name }}
+                    @if($employee->matricule)
+                        — {{ $employee->matricule }}
+                    @endif
+                </option>
+            @endforeach
+        </select>
+    </div>
+
+    <div>
         <label>Nom complet</label>
         <input
             type="text"
             name="employee_name"
+            id="employee_name_input"
             value="{{ $currentEmployeeName }}"
             placeholder="Nom complet de l’employé"
-            required
         >
+        <div class="erp-help-text">
+            Choisir un employé enregistré ou saisir le nom manuellement.
+        </div>
     </div>
 
     <div>
@@ -117,6 +140,13 @@
         resize: vertical;
     }
 
+    .erp-help-text {
+        margin-top: 5px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #64748b;
+    }
+
     .erp-form-actions {
         margin-top: 18px;
         display: flex;
@@ -133,3 +163,23 @@
         }
     }
 </style>
+
+<script>
+    const employeeSelect = document.getElementById('employee_select');
+    const employeeNameInput = document.getElementById('employee_name_input');
+
+    function syncEmployeeName() {
+        const selectedOption = employeeSelect.options[employeeSelect.selectedIndex];
+
+        if (!selectedOption || !selectedOption.value) {
+            employeeNameInput.readOnly = false;
+            return;
+        }
+
+        employeeNameInput.value = selectedOption.dataset.name || '';
+        employeeNameInput.readOnly = true;
+    }
+
+    employeeSelect.addEventListener('change', syncEmployeeName);
+    syncEmployeeName();
+</script>

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Absence;
-use App\Models\User;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -19,7 +19,7 @@ class AbsenceController extends Controller
 
         return view('absences.index', [
             'absences' => $query->paginate(20)->withQueryString(),
-            'users' => User::where('is_active', true)->orderBy('name')->get(),
+            'employees' => Employee::where('is_active', true)->orderBy('full_name')->get(),
             'filters' => $request->only([
                 'employee',
                 'date',
@@ -55,6 +55,9 @@ class AbsenceController extends Controller
 
             fputcsv($handle, [
                 'Nom complet',
+                'Matricule',
+                'Service',
+                'Poste',
                 'Date',
                 'Shift',
                 'Motif',
@@ -67,6 +70,9 @@ class AbsenceController extends Controller
             foreach ($absences as $absence) {
                 fputcsv($handle, [
                     $absence->employee_name,
+                    $absence->employee?->matricule ?: '',
+                    $absence->employee?->department ?: '',
+                    $absence->employee?->position ?: '',
                     "\t" . $absence->absence_date?->format('Y-m-d'),
                     $absence->shift ?: '',
                     $absence->reason,
@@ -89,7 +95,7 @@ class AbsenceController extends Controller
 
         return view('absences.create', [
             'absence' => new Absence(),
-            'users' => User::where('is_active', true)->orderBy('name')->get(),
+            'employees' => Employee::where('is_active', true)->orderBy('full_name')->get(),
             'reasons' => $this->reasons(),
             'shifts' => $this->shifts(),
         ]);
@@ -101,13 +107,14 @@ class AbsenceController extends Controller
 
         $data = $this->validateAbsence($request);
 
-        $selectedUser = !empty($data['user_id'])
-            ? User::find($data['user_id'])
+        $selectedEmployee = !empty($data['employee_id'])
+            ? Employee::find($data['employee_id'])
             : null;
 
         Absence::create([
-            'user_id' => $selectedUser?->id,
-            'employee_name' => $selectedUser?->name ?: $data['employee_name'],
+            'user_id' => null,
+            'employee_id' => $selectedEmployee?->id,
+            'employee_name' => $selectedEmployee?->full_name ?: $data['employee_name'],
             'absence_date' => $data['absence_date'],
             'shift' => $data['shift'] ?? null,
             'reason' => $data['reason'],
@@ -126,7 +133,7 @@ class AbsenceController extends Controller
 
         return view('absences.edit', [
             'absence' => $absence,
-            'users' => User::where('is_active', true)->orderBy('name')->get(),
+            'employees' => Employee::where('is_active', true)->orderBy('full_name')->get(),
             'reasons' => $this->reasons(),
             'shifts' => $this->shifts(),
         ]);
@@ -138,13 +145,14 @@ class AbsenceController extends Controller
 
         $data = $this->validateAbsence($request);
 
-        $selectedUser = !empty($data['user_id'])
-            ? User::find($data['user_id'])
+        $selectedEmployee = !empty($data['employee_id'])
+            ? Employee::find($data['employee_id'])
             : null;
 
         $absence->update([
-            'user_id' => $selectedUser?->id,
-            'employee_name' => $selectedUser?->name ?: $data['employee_name'],
+            'user_id' => null,
+            'employee_id' => $selectedEmployee?->id,
+            'employee_name' => $selectedEmployee?->full_name ?: $data['employee_name'],
             'absence_date' => $data['absence_date'],
             'shift' => $data['shift'] ?? null,
             'reason' => $data['reason'],
@@ -168,10 +176,18 @@ class AbsenceController extends Controller
 
     private function filteredAbsencesQuery(Request $request)
     {
-        $query = Absence::with(['user', 'creator']);
+        $query = Absence::with(['employee', 'creator']);
 
         if ($request->filled('employee')) {
-            $query->where('employee_name', 'like', '%' . $request->employee . '%');
+            $query->where(function ($q) use ($request) {
+                $q->where('employee_name', 'like', '%' . $request->employee . '%')
+                    ->orWhereHas('employee', function ($employeeQuery) use ($request) {
+                        $employeeQuery->where('full_name', 'like', '%' . $request->employee . '%')
+                            ->orWhere('matricule', 'like', '%' . $request->employee . '%')
+                            ->orWhere('department', 'like', '%' . $request->employee . '%')
+                            ->orWhere('position', 'like', '%' . $request->employee . '%');
+                    });
+            });
         }
 
         if ($request->filled('date')) {
@@ -200,8 +216,8 @@ class AbsenceController extends Controller
     private function validateAbsence(Request $request): array
     {
         return $request->validate([
-            'user_id' => ['nullable', 'exists:users,id'],
-            'employee_name' => ['required_without:user_id', 'nullable', 'string', 'max:255'],
+            'employee_id' => ['nullable', 'exists:employees,id'],
+            'employee_name' => ['required_without:employee_id', 'nullable', 'string', 'max:255'],
             'absence_date' => ['required', 'date'],
             'shift' => ['nullable', 'string', 'max:50'],
             'reason' => ['required', 'string', 'max:100'],

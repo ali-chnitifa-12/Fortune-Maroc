@@ -11,6 +11,7 @@ class Absence extends Model
 
     protected $fillable = [
         'user_id',
+        'employee_id',
         'employee_name',
         'absence_date',
         'shift',
@@ -31,6 +32,11 @@ class Absence extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class);
     }
 
     public function creator()
