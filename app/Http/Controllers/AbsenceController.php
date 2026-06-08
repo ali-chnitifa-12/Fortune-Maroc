@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Absence;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AbsenceController extends Controller
 {
@@ -12,32 +13,73 @@ class AbsenceController extends Controller
     {
         abort_unless(auth()->user()?->canViewAbsences(), 403);
 
-        $query = Absence::with(['user', 'creator'])
+        $query = $this->filteredAbsencesQuery($request)
             ->latest('absence_date')
             ->latest('id');
-
-        if ($request->filled('employee')) {
-            $query->where('employee_name', 'like', '%' . $request->employee . '%');
-        }
-
-        if ($request->filled('date')) {
-            $query->whereDate('absence_date', $request->date);
-        }
-
-        if ($request->filled('shift')) {
-            $query->where('shift', $request->shift);
-        }
-
-        if ($request->filled('reason')) {
-            $query->where('reason', $request->reason);
-        }
 
         return view('absences.index', [
             'absences' => $query->paginate(20)->withQueryString(),
             'users' => User::where('is_active', true)->orderBy('name')->get(),
-            'filters' => $request->only(['employee', 'date', 'shift', 'reason']),
+            'filters' => $request->only([
+                'employee',
+                'date',
+                'date_from',
+                'date_to',
+                'shift',
+                'reason',
+            ]),
             'reasons' => $this->reasons(),
             'shifts' => $this->shifts(),
+        ]);
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        abort_unless(auth()->user()?->canViewAbsences(), 403);
+
+        $absences = $this->filteredAbsencesQuery($request)
+            ->orderBy('absence_date')
+            ->orderBy('employee_name')
+            ->get();
+
+        $dateFrom = $request->input('date_from') ?: $request->input('date') ?: 'all';
+        $dateTo = $request->input('date_to') ?: $request->input('date') ?: 'all';
+
+        $fileName = 'absences_' . $dateFrom . '_' . $dateTo . '_' . now()->format('Ymd_His') . '.csv';
+
+        return response()->streamDownload(function () use ($absences) {
+            $handle = fopen('php://output', 'w');
+
+            // UTF-8 BOM pour Excel
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($handle, [
+                'Nom complet',
+                'Date',
+                'Shift',
+                'Motif',
+                'Heures',
+                'Commentaire',
+                'Créé par',
+                'Créé le',
+            ], ';');
+
+            foreach ($absences as $absence) {
+                fputcsv($handle, [
+                    $absence->employee_name,
+                    $absence->absence_date?->format('Y-m-d'),
+                    $absence->shift ?: '',
+                    $absence->reason,
+                    $absence->hours,
+                    $absence->comment ?: '',
+                    $absence->creator?->name ?: '',
+                    $absence->created_at?->format('Y-m-d H:i'),
+                ], ';');
+            }
+
+            fclose($handle);
+        }, $fileName, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 
@@ -122,6 +164,37 @@ class AbsenceController extends Controller
 
         return redirect()->route('absences.index')
             ->with('success', 'Absence deleted successfully.');
+    }
+
+    private function filteredAbsencesQuery(Request $request)
+    {
+        $query = Absence::with(['user', 'creator']);
+
+        if ($request->filled('employee')) {
+            $query->where('employee_name', 'like', '%' . $request->employee . '%');
+        }
+
+        if ($request->filled('date')) {
+            $query->whereDate('absence_date', $request->date);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('absence_date', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('absence_date', '<=', $request->date_to);
+        }
+
+        if ($request->filled('shift')) {
+            $query->where('shift', $request->shift);
+        }
+
+        if ($request->filled('reason')) {
+            $query->where('reason', $request->reason);
+        }
+
+        return $query;
     }
 
     private function validateAbsence(Request $request): array

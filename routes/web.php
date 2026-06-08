@@ -179,6 +179,9 @@ Route::middleware(['auth'])->group(function () {
     |--------------------------------------------------------------------------
     */
 
+    Route::get('absences/export', [AbsenceController::class, 'export'])
+    ->name('absences.export');
+
     Route::resource('absences', AbsenceController::class)->except(['show']);
 
     /*

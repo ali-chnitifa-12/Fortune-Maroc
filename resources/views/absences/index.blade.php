@@ -8,11 +8,20 @@
                 </div>
             </div>
 
-            @if(auth()->user()?->canManageAbsences())
-                <a href="{{ route('absences.create') }}" class="erp-btn erp-btn-primary">
-                    Add Absence
+            <div class="absence-header-actions">
+                <a
+                    href="{{ route('absences.export', request()->query()) }}"
+                    class="erp-btn erp-btn-secondary"
+                >
+                    Export Excel
                 </a>
-            @endif
+
+                @if(auth()->user()?->canManageAbsences())
+                    <a href="{{ route('absences.create') }}" class="erp-btn erp-btn-primary">
+                        Add Absence
+                    </a>
+                @endif
+            </div>
         </div>
     </x-slot>
 
@@ -44,11 +53,20 @@
                 </div>
 
                 <div>
-                    <label>Date</label>
+                    <label>Date From</label>
                     <input
                         type="date"
-                        name="date"
-                        value="{{ $filters['date'] ?? '' }}"
+                        name="date_from"
+                        value="{{ $filters['date_from'] ?? '' }}"
+                    >
+                </div>
+
+                <div>
+                    <label>Date To</label>
+                    <input
+                        type="date"
+                        name="date_to"
+                        value="{{ $filters['date_to'] ?? '' }}"
                     >
                 </div>
 
@@ -86,6 +104,11 @@
                     </a>
                 </div>
             </form>
+
+            <div class="absence-export-note">
+                To export one day, choose the same date in Date From and Date To.
+                To export a week or month, choose the start and end dates.
+            </div>
         </div>
 
         <div class="erp-card">
@@ -159,9 +182,16 @@
     @include('components.erp-page-style')
 
     <style>
+        .absence-header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
         .absence-filter-grid {
             display: grid;
-            grid-template-columns: 1.2fr 1fr 1fr 1.2fr auto;
+            grid-template-columns: 1.2fr 1fr 1fr 1fr 1.2fr auto;
             gap: 12px;
             align-items: end;
         }
@@ -191,18 +221,40 @@
             gap: 8px;
         }
 
+        .absence-export-note {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
         .erp-pill-warning {
             background: #fef3c7;
             color: #92400e;
         }
 
-        @media (max-width: 1100px) {
+        @media (max-width: 1200px) {
+            .absence-filter-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .absence-filter-actions {
+                align-items: end;
+            }
+        }
+
+        @media (max-width: 768px) {
             .absence-filter-grid {
                 grid-template-columns: 1fr;
             }
 
-            .absence-filter-actions {
+            .absence-filter-actions,
+            .absence-header-actions {
                 flex-direction: column;
+                align-items: stretch;
             }
         }
     </style>
