@@ -67,13 +67,13 @@ class AbsenceController extends Controller
             foreach ($absences as $absence) {
                 fputcsv($handle, [
                     $absence->employee_name,
-                    $absence->absence_date?->format('Y-m-d'),
+                    "\t" . $absence->absence_date?->format('Y-m-d'),
                     $absence->shift ?: '',
                     $absence->reason,
                     $absence->hours,
                     $absence->comment ?: '',
                     $absence->creator?->name ?: '',
-                    $absence->created_at?->format('Y-m-d H:i'),
+                    "\t" . $absence->created_at?->format('Y-m-d H:i'),
                 ], ';');
             }
 
