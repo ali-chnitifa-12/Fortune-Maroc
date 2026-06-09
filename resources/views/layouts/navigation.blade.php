@@ -123,22 +123,26 @@
             </div>
         @endif
 
-       @if($user?->canViewAbsences())
-    <div class="menu-section">
-        <div class="menu-section-title">HUMAN RESOURCES</div>
+    @if($user?->canViewAbsences())
+    <div class="menu-section-title">HUMAN RESOURCES</div>
 
-        <a href="{{ route('employees.index') }}"
-           class="menu-link {{ request()->routeIs('employees.*') ? 'active' : '' }}">
-            <span class="menu-icon">E</span>
-            <span class="menu-text">Employés</span>
-        </a>
+    <a href="{{ route('hr-dashboard.index') }}"
+       class="menu-link {{ request()->routeIs('hr-dashboard.*') ? 'active' : '' }}">
+        <span class="menu-icon">RH</span>
+        <span class="menu-text">Dashboard RH</span>
+    </a>
 
-        <a href="{{ route('absences.index') }}"
-           class="menu-link {{ request()->routeIs('absences.*') ? 'active' : '' }}">
-            <span class="menu-icon">HR</span>
-            <span class="menu-text">Absences</span>
-        </a>
-    </div>
+    <a href="{{ route('employees.index') }}"
+       class="menu-link {{ request()->routeIs('employees.*') ? 'active' : '' }}">
+        <span class="menu-icon">E</span>
+        <span class="menu-text">Employés</span>
+    </a>
+
+    <a href="{{ route('absences.index') }}"
+       class="menu-link {{ request()->routeIs('absences.*') ? 'active' : '' }}">
+        <span class="menu-icon">HR</span>
+        <span class="menu-text">Absences</span>
+    </a>
 @endif
 
         @if($user?->canManageUsers())

@@ -4,6 +4,7 @@ use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\DowntimeCategoryController;
 use App\Http\Controllers\DowntimeReasonController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\HrDashboardController;
 use App\Http\Controllers\LineStatusController;
 use App\Http\Controllers\MachineController;
 use App\Http\Controllers\MachineStatusController;
@@ -174,18 +175,21 @@ Route::middleware(['auth'])->group(function () {
 
     Route::resource('thingsboard-devices', ThingsboardDeviceController::class)->except(['show']);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Human Resources
-    |--------------------------------------------------------------------------
-    */
+   /*
+|--------------------------------------------------------------------------
+| Human Resources
+|--------------------------------------------------------------------------
+*/
 
-    Route::resource('employees', EmployeeController::class)->except(['show']);
+Route::get('hr-dashboard', [HrDashboardController::class, 'index'])
+    ->name('hr-dashboard.index');
 
-    Route::get('absences/export', [AbsenceController::class, 'export'])
-        ->name('absences.export');
+Route::resource('employees', EmployeeController::class)->except(['show']);
 
-    Route::resource('absences', AbsenceController::class)->except(['show']);
+Route::get('absences/export', [AbsenceController::class, 'export'])
+    ->name('absences.export');
+
+Route::resource('absences', AbsenceController::class)->except(['show']);
 
     /*
     |--------------------------------------------------------------------------
