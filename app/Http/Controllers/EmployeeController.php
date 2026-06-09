@@ -21,7 +21,8 @@ class EmployeeController extends Controller
                 $q->where('full_name', 'like', '%' . $request->search . '%')
                     ->orWhere('matricule', 'like', '%' . $request->search . '%')
                     ->orWhere('department', 'like', '%' . $request->search . '%')
-                    ->orWhere('position', 'like', '%' . $request->search . '%');
+                    ->orWhere('position', 'like', '%' . $request->search . '%')
+                    ->orWhere('departure_reason', 'like', '%' . $request->search . '%');
             });
         }
 
@@ -56,6 +57,8 @@ class EmployeeController extends Controller
             'department' => $data['department'] ?? null,
             'position' => $data['position'] ?? null,
             'is_active' => $request->boolean('is_active', true),
+            'departure_date' => $data['departure_date'] ?? null,
+            'departure_reason' => $data['departure_reason'] ?? null,
             'created_by' => auth()->id(),
         ]);
 
@@ -84,6 +87,8 @@ class EmployeeController extends Controller
             'department' => $data['department'] ?? null,
             'position' => $data['position'] ?? null,
             'is_active' => $request->boolean('is_active', true),
+            'departure_date' => $data['departure_date'] ?? null,
+            'departure_reason' => $data['departure_reason'] ?? null,
         ]);
 
         return redirect()->route('employees.index')
@@ -113,6 +118,8 @@ class EmployeeController extends Controller
             'department' => ['nullable', 'string', 'max:150'],
             'position' => ['nullable', 'string', 'max:150'],
             'is_active' => ['nullable'],
+            'departure_date' => ['nullable', 'date'],
+            'departure_reason' => ['nullable', 'string', 'max:255'],
         ]);
     }
 }

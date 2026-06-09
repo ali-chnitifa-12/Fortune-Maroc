@@ -3,6 +3,7 @@
 use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\DowntimeCategoryController;
 use App\Http\Controllers\DowntimeReasonController;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\LineStatusController;
 use App\Http\Controllers\MachineController;
 use App\Http\Controllers\MachineStatusController;
@@ -16,7 +17,6 @@ use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\ThingsboardDeviceController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ZoneController;
-use App\Http\Controllers\EmployeeController;
 use App\Models\ProductionEntry;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Route;
@@ -180,12 +180,12 @@ Route::middleware(['auth'])->group(function () {
     |--------------------------------------------------------------------------
     */
 
-   Route::resource('employees', EmployeeController::class)->except(['show']);
+    Route::resource('employees', EmployeeController::class)->except(['show']);
 
-Route::get('absences/export', [AbsenceController::class, 'export'])
-    ->name('absences.export');
+    Route::get('absences/export', [AbsenceController::class, 'export'])
+        ->name('absences.export');
 
-Route::resource('absences', AbsenceController::class)->except(['show']);
+    Route::resource('absences', AbsenceController::class)->except(['show']);
 
     /*
     |--------------------------------------------------------------------------
