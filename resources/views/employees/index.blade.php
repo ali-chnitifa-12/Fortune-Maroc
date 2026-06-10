@@ -73,13 +73,14 @@
                 <table class="erp-table">
                     <thead>
                         <tr>
-                            <th>Nom complet</th>
-                            <th>Matricule</th>
-                            <th>Service</th>
-                            <th>Poste</th>
-                            <th>Statut</th>
-                            <th>Créé par</th>
-                            <th class="text-right">Actions</th>
+                            <th>NOM COMPLET</th>
+<th>MATRICULE</th>
+<th>SERVICE</th>
+<th>POSTE</th>
+<th>LIGNE</th>
+<th>STATUT</th>
+<th>CRÉÉ PAR</th>
+<th>ACTIONS</th>
                         </tr>
                     </thead>
 
@@ -90,6 +91,7 @@
                                 <td>{{ $employee->matricule ?: '-' }}</td>
                                 <td>{{ $employee->department ?: '-' }}</td>
                                 <td>{{ $employee->position ?: '-' }}</td>
+                                <td>{{ $employee->productionLine?->name ?? '-' }}</td>
                                 <td>
                                     @if($employee->is_active)
                                         <span class="erp-pill erp-pill-success">Actif</span>

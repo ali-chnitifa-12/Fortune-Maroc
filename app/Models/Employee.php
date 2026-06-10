@@ -11,6 +11,7 @@ class Employee extends Model
         'matricule',
         'department',
         'position',
+        'production_line_id',
         'is_active',
         'departure_date',
         'departure_reason',
@@ -23,6 +24,11 @@ class Employee extends Model
             'is_active' => 'boolean',
             'departure_date' => 'date',
         ];
+    }
+
+    public function productionLine()
+    {
+        return $this->belongsTo(ProductionLine::class, 'production_line_id');
     }
 
     public function creator()

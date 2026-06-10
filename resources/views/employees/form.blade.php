@@ -3,6 +3,7 @@
     $currentMatricule = old('matricule', $employee->matricule ?? '');
     $currentDepartment = old('department', $employee->department ?? '');
     $currentPosition = old('position', $employee->position ?? '');
+    $currentProductionLineId = old('production_line_id', $employee->production_line_id ?? '');
     $currentIsActive = old('is_active', isset($employee->is_active) ? (int) $employee->is_active : 1);
     $currentDepartureDate = old('departure_date', optional($employee->departure_date ?? null)->format('Y-m-d'));
     $currentDepartureReason = old('departure_reason', $employee->departure_reason ?? '');
@@ -48,6 +49,18 @@
             value="{{ $currentPosition }}"
             placeholder="Poste de l'employé"
         >
+    </div>
+
+    <div>
+        <label>Ligne de production</label>
+        <select name="production_line_id">
+            <option value="">-- Sélectionner une ligne --</option>
+            @foreach($productionLines as $line)
+                <option value="{{ $line->id }}" {{ (string) $currentProductionLineId === (string) $line->id ? 'selected' : '' }}>
+                    {{ $line->name }}
+                </option>
+            @endforeach
+        </select>
     </div>
 
     <div>

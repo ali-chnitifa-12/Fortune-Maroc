@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\ProductionLine;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -13,6 +14,7 @@ class EmployeeController extends Controller
         abort_unless(auth()->user()?->canViewAbsences(), 403);
 
         $query = Employee::query()
+            ->with('productionLine')
             ->latest('is_active')
             ->orderBy('full_name');
 
@@ -42,6 +44,7 @@ class EmployeeController extends Controller
 
         return view('employees.create', [
             'employee' => new Employee(),
+            'productionLines' => $this->productionLines(),
         ]);
     }
 
@@ -56,6 +59,7 @@ class EmployeeController extends Controller
             'matricule' => $data['matricule'] ?? null,
             'department' => $data['department'] ?? null,
             'position' => $data['position'] ?? null,
+            'production_line_id' => $data['production_line_id'] ?? null,
             'is_active' => $request->boolean('is_active', true),
             'departure_date' => $data['departure_date'] ?? null,
             'departure_reason' => $data['departure_reason'] ?? null,
@@ -72,6 +76,7 @@ class EmployeeController extends Controller
 
         return view('employees.edit', [
             'employee' => $employee,
+            'productionLines' => $this->productionLines(),
         ]);
     }
 
@@ -86,6 +91,7 @@ class EmployeeController extends Controller
             'matricule' => $data['matricule'] ?? null,
             'department' => $data['department'] ?? null,
             'position' => $data['position'] ?? null,
+            'production_line_id' => $data['production_line_id'] ?? null,
             'is_active' => $request->boolean('is_active', true),
             'departure_date' => $data['departure_date'] ?? null,
             'departure_reason' => $data['departure_reason'] ?? null,
@@ -117,9 +123,18 @@ class EmployeeController extends Controller
             ],
             'department' => ['nullable', 'string', 'max:150'],
             'position' => ['nullable', 'string', 'max:150'],
+            'production_line_id' => ['nullable', 'exists:production_lines,id'],
             'is_active' => ['nullable'],
             'departure_date' => ['nullable', 'date'],
             'departure_reason' => ['nullable', 'string', 'max:255'],
         ]);
+    }
+
+    private function productionLines()
+    {
+        return ProductionLine::query()
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
     }
 }
