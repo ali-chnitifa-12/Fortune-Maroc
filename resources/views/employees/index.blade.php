@@ -9,9 +9,15 @@
             </div>
 
             @if(auth()->user()?->canManageAbsences())
-                <a href="{{ route('employees.create') }}" class="erp-btn erp-btn-primary">
-                    Ajouter un employé
-                </a>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <a href="{{ route('employees.import.form') }}" class="erp-btn erp-btn-secondary">
+                        Importer employés
+                    </a>
+
+                    <a href="{{ route('employees.create') }}" class="erp-btn erp-btn-primary">
+                        Ajouter un employé
+                    </a>
+                </div>
             @endif
         </div>
     </x-slot>
@@ -124,7 +130,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="erp-empty">
+                                <td colspan="8" class="erp-empty">
                                     Aucun employé trouvé.
                                 </td>
                             </tr>

@@ -180,9 +180,14 @@ Route::middleware(['auth'])->group(function () {
 | Human Resources
 |--------------------------------------------------------------------------
 */
-
 Route::get('hr-dashboard', [HrDashboardController::class, 'index'])
     ->name('hr-dashboard.index');
+
+Route::get('employees-import', [EmployeeController::class, 'importForm'])
+    ->name('employees.import.form');
+
+Route::post('employees-import', [EmployeeController::class, 'import'])
+    ->name('employees.import');
 
 Route::resource('employees', EmployeeController::class)->except(['show']);
 

@@ -239,6 +239,7 @@ class AbsenceController extends Controller
             'Retard',
             'Absence injustifiée',
             'Formation',
+            'Départ',
             'Autre',
         ];
     }
@@ -249,9 +250,6 @@ class AbsenceController extends Controller
             'A',
             'B',
             'C',
-            'Morning',
-            'Afternoon',
-            'Night',
         ];
     }
 }
