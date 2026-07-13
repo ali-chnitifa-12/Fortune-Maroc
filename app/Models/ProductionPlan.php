@@ -24,6 +24,7 @@ class ProductionPlan extends Model
         'responsible',
         'notes',
         'status',
+        'entries_generated_at',
         'created_by',
     ];
 
@@ -31,6 +32,7 @@ class ProductionPlan extends Model
         'plan_date' => 'date',
         'planned_qty' => 'decimal:2',
         'target_oee' => 'decimal:2',
+        'entries_generated_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -89,14 +91,51 @@ class ProductionPlan extends Model
         return $this->hasMany(ProductionEntry::class, 'production_plan_id');
     }
 
+    public function downtimes()
+    {
+        return $this->hasMany(ProductionDowntime::class, 'production_plan_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function hasEntry(): bool
+    public function hasEntries(): bool
     {
         return $this->entries()->exists();
+    }
+
+    public function hasEntry(): bool
+    {
+        return $this->hasEntries();
+    }
+
+    public function generatedEntriesCount(): int
+    {
+        return $this->entries()->count();
+    }
+
+    public function totalDowntimeMinutes(): int
+    {
+        return (int) $this->downtimes()
+            ->whereNotNull('ended_at')
+            ->sum('duration_min');
+    }
+
+    public function openDowntime()
+    {
+        return $this->downtimes()
+            ->whereNull('ended_at')
+            ->latest('started_at')
+            ->first();
+    }
+
+    public function hasOpenDowntime(): bool
+    {
+        return $this->downtimes()
+            ->whereNull('ended_at')
+            ->exists();
     }
 
     public function isPlanned(): bool
