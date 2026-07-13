@@ -21,78 +21,77 @@ use Illuminate\Support\Facades\Log;
 class ProductionEntryController extends Controller
 {
     public function index(Request $request)
-    {
-        $query = ProductionEntry::query()
-            ->select('production_entries.*')
-            ->with([
-                'zone',
-                'productionLine',
-                'shift',
-                'product',
-                'approver',
-                'productionPlan',
-            ])
-            ->leftJoin('zones', 'zones.id', '=', 'production_entries.zone_id')
-            ->leftJoin('production_lines', 'production_lines.id', '=', 'production_entries.production_line_id')
-            ->leftJoin('shifts', 'shifts.id', '=', 'production_entries.shift_id')
-            ->leftJoin('products', 'products.id', '=', 'production_entries.product_id')
-            ->leftJoin('production_plans', 'production_plans.id', '=', 'production_entries.production_plan_id');
+{
+    $today = now()->toDateString();
 
-        $this->applyUserScope($query);
+    $filters = [
+        'date_from' => $request->get('date_from', $today),
+        'date_to' => $request->get('date_to', $today),
+        'zone_id' => $request->get('zone_id'),
+        'production_line_id' => $request->get('production_line_id'),
+        'product_id' => $request->get('product_id'),
+        'shift_id' => $request->get('shift_id'),
+        'entry_status' => $request->get('entry_status'),
+        'sort' => $request->get('sort'),
+        'direction' => $request->get('direction'),
+    ];
 
-        if ($request->filled('date_from')) {
-            $query->whereDate('production_entries.production_date', '>=', $request->date_from);
-        }
+    $query = ProductionEntry::query()
+        ->select('production_entries.*')
+        ->with([
+            'zone',
+            'productionLine',
+            'shift',
+            'product',
+            'approver',
+            'productionPlan',
+        ])
+        ->leftJoin('zones', 'zones.id', '=', 'production_entries.zone_id')
+        ->leftJoin('production_lines', 'production_lines.id', '=', 'production_entries.production_line_id')
+        ->leftJoin('shifts', 'shifts.id', '=', 'production_entries.shift_id')
+        ->leftJoin('products', 'products.id', '=', 'production_entries.product_id')
+        ->leftJoin('production_plans', 'production_plans.id', '=', 'production_entries.production_plan_id');
 
-        if ($request->filled('date_to')) {
-            $query->whereDate('production_entries.production_date', '<=', $request->date_to);
-        }
+    $this->applyUserScope($query);
 
-        if ($request->filled('zone_id') && auth()->user()->canAccessZone((int) $request->zone_id)) {
-            $query->where('production_entries.zone_id', $request->zone_id);
-        }
+    $query->whereDate('production_entries.production_date', '>=', $filters['date_from']);
+    $query->whereDate('production_entries.production_date', '<=', $filters['date_to']);
 
-        if ($request->filled('production_line_id') && auth()->user()->canAccessProductionLine((int) $request->production_line_id)) {
-            $query->where('production_entries.production_line_id', $request->production_line_id);
-        }
-
-        if ($request->filled('product_id')) {
-            $query->where('production_entries.product_id', $request->product_id);
-        }
-
-        if ($request->filled('shift_id')) {
-            $query->where('production_entries.shift_id', $request->shift_id);
-        }
-
-        if ($request->filled('entry_status')) {
-            $query->where('production_entries.entry_status', $request->entry_status);
-        }
-
-        $this->applySorting($query, $request);
-
-        $entries = $query
-            ->paginate(20)
-            ->withQueryString();
-
-        return view('production-entries.index', [
-            'entries' => $entries,
-            'zones' => $this->visibleZones(),
-            'productionLines' => $this->visibleProductionLines(),
-            'products' => Product::where('is_active', true)->orderBy('code')->get(),
-            'shifts' => Shift::where('is_active', true)->orderBy('start_time')->get(),
-            'filters' => $request->only([
-                'date_from',
-                'date_to',
-                'zone_id',
-                'production_line_id',
-                'product_id',
-                'shift_id',
-                'entry_status',
-                'sort',
-                'direction',
-            ]),
-        ]);
+    if (!empty($filters['zone_id']) && auth()->user()->canAccessZone((int) $filters['zone_id'])) {
+        $query->where('production_entries.zone_id', $filters['zone_id']);
     }
+
+    if (!empty($filters['production_line_id']) && auth()->user()->canAccessProductionLine((int) $filters['production_line_id'])) {
+        $query->where('production_entries.production_line_id', $filters['production_line_id']);
+    }
+
+    if (!empty($filters['product_id'])) {
+        $query->where('production_entries.product_id', $filters['product_id']);
+    }
+
+    if (!empty($filters['shift_id'])) {
+        $query->where('production_entries.shift_id', $filters['shift_id']);
+    }
+
+    if (!empty($filters['entry_status'])) {
+        $query->where('production_entries.entry_status', $filters['entry_status']);
+    }
+
+    $this->applySorting($query, $request);
+
+    $entries = $query
+        ->paginate(20)
+        ->withQueryString();
+
+    return view('production-entries.index', [
+        'entries' => $entries,
+        'zones' => $this->visibleZones(),
+        'productionLines' => $this->visibleProductionLines(),
+        'products' => Product::where('is_active', true)->orderBy('code')->get(),
+        'shifts' => Shift::where('is_active', true)->orderBy('start_time')->get(),
+        'filters' => $filters,
+    ]);
+}
 
     private function applySorting($query, Request $request): void
     {
@@ -109,7 +108,9 @@ class ProductionEntryController extends Controller
             'actual_qty' => 'production_entries.actual_qty',
             'good_qty' => 'production_entries.good_qty',
             'rejected_qty' => 'production_entries.rejected_qty',
-            'chute_qty' => 'production_entries.chute_qty',
+            'chute_1_qty' => 'production_entries.chute_1_qty',
+            'chute_2_qty' => 'production_entries.chute_2_qty',
+            'chute_3_qty' => 'production_entries.chute_3_qty',
             'stop_duration_min' => 'production_entries.stop_duration_min',
             'oee' => 'production_entries.oee',
             'entry_status' => 'production_entries.entry_status',
@@ -137,7 +138,7 @@ class ProductionEntryController extends Controller
     {
         return redirect()->route('production-plans.index')
             ->withErrors([
-                'entry' => 'Create production entries from production plans.',
+                'entry' => 'Production entries are generated automatically from production plans.',
             ]);
     }
 
@@ -145,73 +146,16 @@ class ProductionEntryController extends Controller
     {
         return redirect()->route('production-plans.index')
             ->withErrors([
-                'entry' => 'Create production entries from production plans.',
+                'entry' => 'Production entries are generated automatically from production plans.',
             ]);
     }
 
     public function createFromPlan(ProductionPlan $production_plan)
     {
-        if (!auth()->user()?->canCreateProductionEntries()) {
-            abort(403, 'You are not allowed to create production entries.');
-        }
-
-        if (!auth()->user()->canAccessProductionLine((int) $production_plan->production_line_id)) {
-            abort(403, 'You cannot create an entry from this production plan.');
-        }
-
-        if ($production_plan->status === 'cancelled') {
-            return redirect()->route('production-plans.index')
-                ->withErrors([
-                    'plan' => 'You cannot create an entry from a cancelled plan.',
-                ]);
-        }
-
-        $existingEntry = ProductionEntry::where('production_plan_id', $production_plan->id)->first();
-
-        if ($existingEntry) {
-            return redirect()->route('production-entries.edit', $existingEntry)
-                ->withErrors([
-                    'plan' => 'A production entry already exists for this production plan.',
-                ]);
-        }
-
-        $entry = DB::transaction(function () use ($production_plan) {
-            $entry = ProductionEntry::create([
-                'production_plan_id' => $production_plan->id,
-                'zone_id' => $production_plan->zone_id,
-                'production_line_id' => $production_plan->production_line_id,
-                'production_date' => $production_plan->plan_date,
-                'shift_id' => $production_plan->shift_id,
-                'machine_id' => null,
-                'product_id' => $production_plan->product_id,
-                'hour_start' => $production_plan->hour_start,
-                'hour_end' => $production_plan->hour_end,
-                'planned_qty' => $production_plan->planned_qty,
-                'actual_qty' => 0,
-                'rejected_qty' => 0,
-                'chute_qty' => 0,
-                'good_qty' => 0,
-                'machine_status' => 'active',
-                'entry_status' => 'draft',
-                'stop_duration_min' => 0,
-                'stops_count' => 0,
-                'availability' => 100,
-                'performance' => 0,
-                'quality' => 0,
-                'oee' => 0,
-                'sent_to_thingsboard' => false,
-                'created_by' => auth()->id(),
+        return redirect()->route('production-plans.index')
+            ->withErrors([
+                'entry' => 'Entries are generated automatically when creating a production plan.',
             ]);
-
-            $production_plan->update([
-                'status' => 'in_progress',
-            ]);
-
-            return $entry;
-        });
-
-        return redirect()->route('production-entries.edit', $entry)
-            ->with('success', 'Production entry created from plan.');
     }
 
     public function edit(ProductionEntry $production_entry)
@@ -223,7 +167,9 @@ class ProductionEntryController extends Controller
             'productionLine.machines',
             'shift',
             'product',
-            'productionPlan',
+            'productionPlan.downtimes.machine',
+            'productionPlan.downtimes.downtimeCategory',
+            'productionPlan.downtimes.downtimeReason',
             'downtimes.machine',
             'downtimes.downtimeCategory',
             'downtimes.downtimeReason',
@@ -231,6 +177,7 @@ class ProductionEntryController extends Controller
 
         return view('production-entries.edit', [
             'entry' => $production_entry,
+            'plan' => $production_entry->productionPlan,
             'lineMachines' => $production_entry->productionLine
                 ? $production_entry->productionLine->machines()->where('is_active', true)->orderBy('code')->get()
                 : collect(),
@@ -256,7 +203,9 @@ class ProductionEntryController extends Controller
         $data = $request->validate([
             'actual_qty' => ['required', 'numeric', 'min:0.01'],
             'rejected_qty' => ['required', 'numeric', 'min:0'],
-            'chute_qty' => ['nullable', 'numeric', 'min:0'],
+            'chute_1_qty' => ['nullable', 'numeric', 'min:0'],
+            'chute_2_qty' => ['nullable', 'numeric', 'min:0'],
+            'chute_3_qty' => ['nullable', 'numeric', 'min:0'],
             'comment' => ['nullable', 'string'],
         ]);
 
@@ -266,14 +215,20 @@ class ProductionEntryController extends Controller
             ]);
         }
 
-        $data['chute_qty'] = $data['chute_qty'] ?? 0;
+        $data['chute_1_qty'] = $data['chute_1_qty'] ?? 0;
+        $data['chute_2_qty'] = $data['chute_2_qty'] ?? 0;
+        $data['chute_3_qty'] = $data['chute_3_qty'] ?? 0;
 
         $production_entry->fill($data);
 
         $this->calculateKpis($production_entry);
         $production_entry->save();
 
-        return back()->with('success', 'Production entry updated successfully.');
+        $this->syncAllPlanEntriesKpis($production_entry->productionPlan);
+        $this->syncPlanStatusFromEntries($production_entry->productionPlan);
+
+        return redirect($this->returnUrl($request))
+            ->with('success', 'Production entry updated successfully.');
     }
 
     public function stopMachine(Request $request, ProductionEntry $production_entry)
@@ -284,46 +239,15 @@ class ProductionEntryController extends Controller
             abort(403, 'You are not allowed to declare machine stops.');
         }
 
-        if ($production_entry->entry_status !== 'draft') {
+        if (!$production_entry->production_plan_id) {
             return back()->withErrors([
-                'entry' => 'Only draft entries can declare machine stops.',
+                'downtime' => 'Production entry is not linked to a production plan.',
             ]);
         }
 
         $data = $request->validate([
             'machine_id' => ['required', 'exists:machines,id'],
-            'actual_qty' => ['nullable', 'numeric', 'min:0'],
-            'rejected_qty' => ['nullable', 'numeric', 'min:0'],
-            'chute_qty' => ['nullable', 'numeric', 'min:0'],
         ]);
-
-        $actualQty = $request->filled('actual_qty')
-            ? (float) $data['actual_qty']
-            : (float) $production_entry->actual_qty;
-
-        $rejectedQty = $request->filled('rejected_qty')
-            ? (float) $data['rejected_qty']
-            : (float) $production_entry->rejected_qty;
-
-        $chuteQty = $request->filled('chute_qty')
-            ? (float) $data['chute_qty']
-            : (float) $production_entry->chute_qty;
-
-        if ($actualQty <= 0 && $rejectedQty > 0) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'rejected_qty' => 'Rejected Qty cannot be entered before Actual Qty.',
-                ]);
-        }
-
-        if ($actualQty > 0 && $rejectedQty > $actualQty) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'rejected_qty' => 'Rejected Qty cannot be greater than Actual Qty.',
-                ]);
-        }
 
         $machineBelongsToLine = Machine::where('id', $data['machine_id'])
             ->where('production_line_id', $production_entry->production_line_id)
@@ -335,47 +259,40 @@ class ProductionEntryController extends Controller
             ]);
         }
 
-        $openDowntime = ProductionDowntime::where('production_entry_id', $production_entry->id)
+        $openDowntime = ProductionDowntime::where('production_plan_id', $production_entry->production_plan_id)
             ->whereNull('ended_at')
             ->first();
 
         if ($openDowntime) {
             return back()->withErrors([
-                'machine_id' => 'There is already an open machine stop. Fix it first.',
+                'machine_id' => 'There is already an open machine stop for this shift. Fix it first.',
             ]);
         }
 
-        $downtime = DB::transaction(function () use ($production_entry, $data, $actualQty, $rejectedQty, $chuteQty) {
-            $production_entry->actual_qty = $actualQty;
-            $production_entry->rejected_qty = $rejectedQty;
-            $production_entry->chute_qty = $chuteQty;
-
-            $this->calculateKpis($production_entry);
-
-            $production_entry->machine_id = $data['machine_id'];
-            $production_entry->machine_status = 'in_repair';
-            $production_entry->current_stop_started_at = now();
-            $production_entry->stop_started_at = now();
-            $production_entry->stops_count = (int) $production_entry->stops_count + 1;
-            $production_entry->save();
+        $downtime = DB::transaction(function () use ($production_entry, $data) {
+            $production_entry->productionPlan?->update([
+                'status' => 'in_progress',
+            ]);
 
             return ProductionDowntime::create([
-                'production_entry_id' => $production_entry->id,
+                'production_plan_id' => $production_entry->production_plan_id,
+                'production_entry_id' => null,
                 'machine_id' => $data['machine_id'],
                 'started_at' => now(),
                 'ended_at' => null,
                 'duration_min' => 0,
+                'created_by' => auth()->id(),
             ]);
         });
 
         $this->sendMachineStopTelemetry($production_entry->fresh(), $downtime->fresh());
 
         return redirect()
-            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
-            ->with('success', 'Machine stop declared.');
+            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
+            ->with('success', 'Machine stop declared for the shift.');
     }
 
-    public function fixedMachine(ProductionEntry $production_entry)
+    public function fixedMachine(Request $request, ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -383,24 +300,24 @@ class ProductionEntryController extends Controller
             abort(403, 'You are not allowed to fix machine stops.');
         }
 
-        if ($production_entry->entry_status !== 'draft') {
+        if (!$production_entry->production_plan_id) {
             return back()->withErrors([
-                'entry' => 'Only draft entries can be fixed.',
+                'downtime' => 'Production entry is not linked to a production plan.',
             ]);
         }
 
-        $openDowntime = ProductionDowntime::where('production_entry_id', $production_entry->id)
+        $openDowntime = ProductionDowntime::where('production_plan_id', $production_entry->production_plan_id)
             ->whereNull('ended_at')
             ->latest('started_at')
             ->first();
 
         if (!$openDowntime) {
             return back()->withErrors([
-                'downtime' => 'No open machine stop found.',
+                'downtime' => 'No open machine stop found for this shift.',
             ]);
         }
 
-        $downtime = DB::transaction(function () use ($production_entry, $openDowntime) {
+        $downtime = DB::transaction(function () use ($openDowntime) {
             $endedAt = now();
             $duration = max(1, $openDowntime->started_at->diffInMinutes($endedAt));
 
@@ -409,28 +326,19 @@ class ProductionEntryController extends Controller
                 'duration_min' => $duration,
             ]);
 
-            $totalStop = ProductionDowntime::where('production_entry_id', $production_entry->id)
-                ->sum('duration_min');
-
-            $production_entry->stop_duration_min = $totalStop;
-            $production_entry->machine_status = 'active';
-            $production_entry->current_stop_started_at = null;
-            $production_entry->stop_ended_at = $endedAt;
-
-            $this->calculateKpis($production_entry);
-            $production_entry->save();
-
             return $openDowntime->fresh();
         });
 
-        $this->sendMachineFixedTelemetry($production_entry->fresh(), $downtime);
+        $freshEntry = $production_entry->fresh();
+        $this->syncAllPlanEntriesKpis($freshEntry->productionPlan);
+        $this->sendMachineFixedTelemetry($freshEntry, $downtime);
 
         return redirect()
-            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
-            ->with('success', 'Machine fixed.');
+            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
+            ->with('success', 'Machine fixed for the shift.');
     }
 
-    public function finishEntry(ProductionEntry $production_entry)
+    public function finishEntry(Request $request, ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -444,19 +352,19 @@ class ProductionEntryController extends Controller
             ]);
         }
 
-        $openDowntime = ProductionDowntime::where('production_entry_id', $production_entry->id)
+        $openDowntime = ProductionDowntime::where('production_plan_id', $production_entry->production_plan_id)
             ->whereNull('ended_at')
             ->exists();
 
         if ($openDowntime) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
                 ->withErrors([
                     'downtime' => 'You must fix the stopped machine before finishing the entry.',
                 ]);
         }
 
-        $invalidDowntime = ProductionDowntime::where('production_entry_id', $production_entry->id)
+        $invalidDowntime = ProductionDowntime::where('production_plan_id', $production_entry->production_plan_id)
             ->whereNotNull('ended_at')
             ->where(function ($query) {
                 $query->whereNull('downtime_category_id')
@@ -466,15 +374,15 @@ class ProductionEntryController extends Controller
 
         if ($invalidDowntime) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
                 ->withErrors([
-                    'downtime' => 'Downtime category and reason are mandatory before finishing the entry.',
+                    'downtime' => 'Downtime category and reason are mandatory before finishing entries.',
                 ]);
         }
 
         if ((float) $production_entry->actual_qty <= 0) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production'])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production', 'return_url' => $this->returnUrl($request)])
                 ->withErrors([
                     'actual_qty' => 'Actual Qty is required before finishing the entry.',
                 ]);
@@ -482,7 +390,7 @@ class ProductionEntryController extends Controller
 
         if ((float) $production_entry->rejected_qty > (float) $production_entry->actual_qty) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production'])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production', 'return_url' => $this->returnUrl($request)])
                 ->withErrors([
                     'rejected_qty' => 'Rejected Qty cannot be greater than Actual Qty.',
                 ]);
@@ -501,11 +409,14 @@ class ProductionEntryController extends Controller
             'good_qty' => $production_entry->good_qty,
         ]);
 
-        return redirect()->route('production-entries.index')
+        $this->syncAllPlanEntriesKpis($production_entry->productionPlan);
+        $this->syncPlanStatusFromEntries($production_entry->productionPlan);
+
+        return redirect($this->returnUrl($request))
             ->with('success', 'Production entry finished successfully. Waiting for Responsable Production approval.');
     }
 
-    public function approveEntry(ProductionEntry $production_entry)
+    public function approveEntry(Request $request, ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -525,10 +436,9 @@ class ProductionEntryController extends Controller
             'shift',
             'product',
             'approver',
-            'downtimes.machine',
-            'downtimes.downtimeCategory',
-            'downtimes.downtimeReason',
-            'productionPlan',
+            'productionPlan.downtimes.machine',
+            'productionPlan.downtimes.downtimeCategory',
+            'productionPlan.downtimes.downtimeReason',
         ]);
 
         $mapping = ThingsboardDevice::where('mapping_type', 'line')
@@ -545,17 +455,16 @@ class ProductionEntryController extends Controller
         $this->calculateKpis($production_entry);
         $production_entry->save();
 
-        $payload = $this->buildLineTelemetryPayload($production_entry);
+        $entryPayload = $this->buildLineTelemetryPayload($production_entry);
+        $entryTbResult = $this->sendTelemetryToThingsBoard($mapping->access_token, $entryPayload);
 
-        $tbResult = $this->sendTelemetryToThingsBoard($mapping->access_token, $payload);
-
-        if (!$tbResult['success']) {
+        if (!$entryTbResult['success']) {
             return back()->withErrors([
-                'thingsboard' => 'Approval blocked. ThingsBoard sending failed: ' . $tbResult['message'],
+                'thingsboard' => 'Approval blocked. ThingsBoard sending failed: ' . $entryTbResult['message'],
             ]);
         }
 
-        DB::transaction(function () use ($production_entry, $mapping, $payload, $tbResult) {
+        DB::transaction(function () use ($production_entry, $mapping, $entryPayload, $entryTbResult) {
             $production_entry->update([
                 'entry_status' => 'sent_to_thingsboard',
                 'approved_by' => auth()->id(),
@@ -564,23 +473,37 @@ class ProductionEntryController extends Controller
                 'thingsboard_response' => json_encode([
                     'mapping_id' => $mapping->id,
                     'device_name' => $mapping->device_name,
-                    'payload' => $payload,
-                    'response' => $tbResult,
+                    'payload' => $entryPayload,
+                    'response' => $entryTbResult,
                 ]),
             ]);
-
-            if ($production_entry->productionPlan) {
-                $production_entry->productionPlan->update([
-                    'status' => 'completed',
-                ]);
-            }
         });
 
-        return redirect()->route('production-entries.index')
+        $freshEntry = $production_entry->fresh();
+        $plan = $freshEntry->productionPlan;
+
+        $this->syncAllPlanEntriesKpis($plan);
+        $this->syncPlanStatusFromEntries($plan);
+
+        if ($this->isPlanFullySent($plan)) {
+            $summaryPayload = $this->buildShiftSummaryTelemetryPayload($plan);
+            $summaryResult = $this->sendTelemetryToThingsBoard($mapping->access_token, $summaryPayload);
+
+            if (!$summaryResult['success']) {
+                Log::error('ThingsBoard shift summary telemetry failed', [
+                    'plan_id' => $plan?->id,
+                    'plan_code' => $plan?->plan_code,
+                    'result' => $summaryResult,
+                    'payload' => $summaryPayload,
+                ]);
+            }
+        }
+
+        return redirect($this->returnUrl($request))
             ->with('success', 'Production entry approved and sent to ThingsBoard successfully.');
     }
 
-    public function destroy(ProductionEntry $production_entry)
+    public function destroy(Request $request, ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -597,18 +520,31 @@ class ProductionEntryController extends Controller
         DB::transaction(function () use ($production_entry) {
             $plan = $production_entry->productionPlan;
 
-            $production_entry->downtimes()->delete();
             $production_entry->delete();
 
-            if ($plan) {
-                $plan->update([
-                    'status' => 'planned',
-                ]);
-            }
+            $this->syncPlanStatusFromEntries($plan);
         });
 
-        return redirect()->route('production-entries.index')
+        return redirect($this->returnUrl($request))
             ->with('success', 'Production entry deleted successfully.');
+    }
+
+
+    private function returnUrl(Request $request): string
+    {
+        $returnUrl = (string) $request->input('return_url', '');
+
+        if ($returnUrl !== '') {
+            if (str_starts_with($returnUrl, url('/'))) {
+                return $returnUrl;
+            }
+
+            if (str_starts_with($returnUrl, '/')) {
+                return url($returnUrl);
+            }
+        }
+
+        return route('production-entries.index');
     }
 
     private function calculateKpis(ProductionEntry $entry): void
@@ -616,19 +552,65 @@ class ProductionEntryController extends Controller
         $plannedQty = (float) $entry->planned_qty;
         $actualQty = (float) $entry->actual_qty;
         $rejectedQty = (float) $entry->rejected_qty;
-        $stopDuration = (int) $entry->stop_duration_min;
+
+        $planDowntimeMin = 0;
+        $shiftDurationMin = 60;
+
+        if ($entry->production_plan_id) {
+            $plan = $entry->productionPlan;
+
+            if ($plan && $plan->hour_start && $plan->hour_end) {
+                $shiftDurationMin = $this->minutesBetween($plan->hour_start, $plan->hour_end);
+            }
+
+            $planDowntimeMin = ProductionDowntime::where('production_plan_id', $entry->production_plan_id)
+                ->whereNotNull('ended_at')
+                ->sum('duration_min');
+        }
 
         $goodQty = max(0, $actualQty - $rejectedQty);
-        $availability = max(0, min(100, ((60 - $stopDuration) / 60) * 100));
+
+        $availability = $shiftDurationMin > 0
+            ? max(0, min(100, (($shiftDurationMin - $planDowntimeMin) / $shiftDurationMin) * 100))
+            : 100;
+
         $performance = $plannedQty > 0 ? ($actualQty / $plannedQty) * 100 : 0;
         $quality = $actualQty > 0 ? ($goodQty / $actualQty) * 100 : 0;
         $oee = ($availability * $performance * $quality) / 10000;
 
         $entry->good_qty = round($goodQty, 2);
+        $entry->stop_duration_min = (int) $planDowntimeMin;
+        $entry->stops_count = (int) ProductionDowntime::where('production_plan_id', $entry->production_plan_id)->count();
         $entry->availability = round($availability, 2);
         $entry->performance = round($performance, 2);
         $entry->quality = round($quality, 2);
         $entry->oee = round($oee, 2);
+    }
+
+    private function syncAllPlanEntriesKpis(?ProductionPlan $plan): void
+    {
+        if (!$plan) {
+            return;
+        }
+
+        $entries = $plan->entries()->get();
+
+        foreach ($entries as $entry) {
+            $this->calculateKpis($entry);
+            $entry->save();
+        }
+    }
+
+    private function minutesBetween($startTime, $endTime): int
+    {
+        $start = \Carbon\Carbon::createFromFormat('H:i:s', strlen((string) $startTime) === 5 ? $startTime . ':00' : (string) $startTime);
+        $end = \Carbon\Carbon::createFromFormat('H:i:s', strlen((string) $endTime) === 5 ? $endTime . ':00' : (string) $endTime);
+
+        if ($end->lessThanOrEqualTo($start)) {
+            $end->addDay();
+        }
+
+        return max(1, $start->diffInMinutes($end));
     }
 
     private function buildLineTelemetryPayload(ProductionEntry $entry): array
@@ -639,12 +621,14 @@ class ProductionEntryController extends Controller
             'shift',
             'product',
             'approver',
-            'productionPlan',
+            'productionPlan.downtimes.machine',
+            'productionPlan.downtimes.downtimeCategory',
+            'productionPlan.downtimes.downtimeReason',
         ]);
 
         return [
             'source' => 'production_web_app',
-            'event_type' => 'production_entry',
+            'event_type' => 'hourly_production_entry',
             'entry_id' => $entry->id,
             'entry_code' => $entry->entry_code,
             'production_plan_id' => $entry->production_plan_id,
@@ -664,7 +648,9 @@ class ProductionEntryController extends Controller
             'actual_qty' => (float) $entry->actual_qty,
             'good_qty' => (float) $entry->good_qty,
             'rejected_qty' => (float) $entry->rejected_qty,
-            'chute_qty' => (float) $entry->chute_qty,
+            'chute_1_qty' => (float) $entry->chute_1_qty,
+            'chute_2_qty' => (float) $entry->chute_2_qty,
+            'chute_3_qty' => (float) $entry->chute_3_qty,
             'stop_duration_min' => (int) $entry->stop_duration_min,
             'stops_count' => (int) $entry->stops_count,
             'availability' => (float) $entry->availability,
@@ -672,15 +658,95 @@ class ProductionEntryController extends Controller
             'quality' => (float) $entry->quality,
             'oee' => (float) $entry->oee,
             'entry_status' => 'sent_to_thingsboard',
-            'machine_status' => $entry->machine_status,
             'approved_by' => auth()->user()?->name,
             'approved_at' => now()->format('Y-m-d H:i:s'),
         ];
     }
 
+    private function buildShiftSummaryTelemetryPayload(?ProductionPlan $plan): array
+    {
+        if (!$plan) {
+            return [];
+        }
+
+        $plan->loadMissing([
+            'zone',
+            'productionLine',
+            'shift',
+            'product',
+            'entries',
+            'downtimes.machine',
+            'downtimes.downtimeCategory',
+            'downtimes.downtimeReason',
+        ]);
+
+        $entries = $plan->entries;
+        $downtimes = $plan->downtimes;
+
+        $plannedQty = (float) $plan->planned_qty;
+        $actualQty = (float) $entries->sum('actual_qty');
+        $goodQty = (float) $entries->sum('good_qty');
+        $rejectedQty = (float) $entries->sum('rejected_qty');
+        $chute1Qty = (float) $entries->sum('chute_1_qty');
+        $chute2Qty = (float) $entries->sum('chute_2_qty');
+        $chute3Qty = (float) $entries->sum('chute_3_qty');
+        $downtimeMin = (int) $downtimes->sum('duration_min');
+        $stopsCount = (int) $downtimes->count();
+        $shiftMinutes = $this->minutesBetween($plan->hour_start, $plan->hour_end);
+
+        $availability = $shiftMinutes > 0
+            ? max(0, min(100, (($shiftMinutes - $downtimeMin) / $shiftMinutes) * 100))
+            : 0;
+
+        $performance = $plannedQty > 0
+            ? ($actualQty / $plannedQty) * 100
+            : 0;
+
+        $quality = $actualQty > 0
+            ? ($goodQty / $actualQty) * 100
+            : 0;
+
+        $oee = ($availability * $performance * $quality) / 10000;
+
+        return [
+            'source' => 'production_web_app',
+            'event_type' => 'shift_production_summary',
+            'production_plan_id' => $plan->id,
+            'plan_code' => $plan->plan_code,
+            'production_date' => $plan->plan_date?->format('Y-m-d'),
+            'zone' => $plan->zone?->code,
+            'zone_name' => $plan->zone?->name,
+            'line' => $plan->productionLine?->code,
+            'line_name' => $plan->productionLine?->name,
+            'product_code' => $plan->product?->code,
+            'product_name' => $plan->product?->name,
+            'shift' => $plan->shift?->code,
+            'shift_name' => $plan->shift?->name,
+            'shift_start' => $plan->hour_start ? substr($plan->hour_start, 0, 5) : null,
+            'shift_end' => $plan->hour_end ? substr($plan->hour_end, 0, 5) : null,
+            'shift_duration_min' => $shiftMinutes,
+            'entries_count' => $entries->count(),
+            'planned_qty_total' => round($plannedQty, 2),
+            'actual_qty_total' => round($actualQty, 2),
+            'good_qty_total' => round($goodQty, 2),
+            'rejected_qty_total' => round($rejectedQty, 2),
+            'chute_1_qty_total' => round($chute1Qty, 2),
+            'chute_2_qty_total' => round($chute2Qty, 2),
+            'chute_3_qty_total' => round($chute3Qty, 2),
+            'stops_count' => $stopsCount,
+            'total_downtime_min' => $downtimeMin,
+            'availability' => round($availability, 2),
+            'performance' => round($performance, 2),
+            'quality' => round($quality, 2),
+            'oee' => round($oee, 2),
+            'plan_status' => 'completed',
+            'sent_at' => now()->format('Y-m-d H:i:s'),
+        ];
+    }
+
     private function sendMachineStopTelemetry(ProductionEntry $entry, ProductionDowntime $downtime): array
     {
-        $entry->load(['zone', 'productionLine', 'shift', 'product']);
+        $entry->load(['zone', 'productionLine', 'shift', 'product', 'productionPlan']);
         $downtime->load(['machine']);
 
         $mapping = ThingsboardDevice::where('mapping_type', 'machine')
@@ -698,8 +764,8 @@ class ProductionEntryController extends Controller
         $payload = [
             'source' => 'production_web_app',
             'event_type' => 'machine_stop',
-            'entry_id' => $entry->id,
-            'entry_code' => $entry->entry_code,
+            'production_plan_id' => $entry->production_plan_id,
+            'plan_code' => $entry->productionPlan?->plan_code,
             'downtime_id' => $downtime->id,
             'machine_status' => 'in_repair',
             'active_stop' => 1,
@@ -710,16 +776,10 @@ class ProductionEntryController extends Controller
             'line' => $entry->productionLine?->code,
             'line_name' => $entry->productionLine?->name,
             'product_code' => $entry->product?->code,
+            'product_name' => $entry->product?->name,
             'shift' => $entry->shift?->code,
+            'shift_name' => $entry->shift?->name,
             'production_date' => $entry->production_date?->format('Y-m-d'),
-            'hour_start' => $entry->hour_start ? substr($entry->hour_start, 0, 5) : null,
-            'hour_end' => $entry->hour_end ? substr($entry->hour_end, 0, 5) : null,
-            'planned_qty' => (float) $entry->planned_qty,
-            'actual_qty' => (float) $entry->actual_qty,
-            'good_qty' => (float) $entry->good_qty,
-            'rejected_qty' => (float) $entry->rejected_qty,
-            'chute_qty' => (float) $entry->chute_qty,
-            'oee' => (float) $entry->oee,
             'stop_started_at' => $downtime->started_at?->format('Y-m-d H:i:s'),
             'stop_duration_min' => 0,
         ];
@@ -729,7 +789,7 @@ class ProductionEntryController extends Controller
 
     private function sendMachineFixedTelemetry(ProductionEntry $entry, ProductionDowntime $downtime): array
     {
-        $entry->load(['zone', 'productionLine', 'shift', 'product']);
+        $entry->load(['zone', 'productionLine', 'shift', 'product', 'productionPlan']);
         $downtime->load(['machine', 'downtimeCategory', 'downtimeReason']);
 
         $mapping = ThingsboardDevice::where('mapping_type', 'machine')
@@ -747,8 +807,8 @@ class ProductionEntryController extends Controller
         $payload = [
             'source' => 'production_web_app',
             'event_type' => 'machine_fixed',
-            'entry_id' => $entry->id,
-            'entry_code' => $entry->entry_code,
+            'production_plan_id' => $entry->production_plan_id,
+            'plan_code' => $entry->productionPlan?->plan_code,
             'downtime_id' => $downtime->id,
             'machine_status' => 'active',
             'active_stop' => 0,
@@ -759,23 +819,16 @@ class ProductionEntryController extends Controller
             'line' => $entry->productionLine?->code,
             'line_name' => $entry->productionLine?->name,
             'product_code' => $entry->product?->code,
+            'product_name' => $entry->product?->name,
             'shift' => $entry->shift?->code,
+            'shift_name' => $entry->shift?->name,
             'production_date' => $entry->production_date?->format('Y-m-d'),
-            'hour_start' => $entry->hour_start ? substr($entry->hour_start, 0, 5) : null,
-            'hour_end' => $entry->hour_end ? substr($entry->hour_end, 0, 5) : null,
-            'planned_qty' => (float) $entry->planned_qty,
-            'actual_qty' => (float) $entry->actual_qty,
-            'good_qty' => (float) $entry->good_qty,
-            'rejected_qty' => (float) $entry->rejected_qty,
-            'chute_qty' => (float) $entry->chute_qty,
-            'oee' => (float) $entry->oee,
             'stop_started_at' => $downtime->started_at?->format('Y-m-d H:i:s'),
             'stop_ended_at' => $downtime->ended_at?->format('Y-m-d H:i:s'),
             'stop_duration_min' => (int) $downtime->duration_min,
-            'total_entry_stop_duration_min' => (int) $entry->stop_duration_min,
-            'stops_count' => (int) $entry->stops_count,
             'downtime_category' => $downtime->downtimeCategory?->name,
             'downtime_reason' => $downtime->downtimeReason?->name,
+            'comment' => $downtime->comment,
         ];
 
         return $this->sendTelemetryToThingsBoard($mapping->access_token, $payload);
@@ -826,6 +879,49 @@ class ProductionEntryController extends Controller
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    private function isPlanFullySent(?ProductionPlan $plan): bool
+    {
+        if (!$plan) {
+            return false;
+        }
+
+        $totalEntries = $plan->entries()->count();
+
+        if ($totalEntries === 0) {
+            return false;
+        }
+
+        $sentEntries = $plan->entries()
+            ->where('entry_status', 'sent_to_thingsboard')
+            ->where('sent_to_thingsboard', true)
+            ->count();
+
+        return $totalEntries === $sentEntries;
+    }
+
+    private function syncPlanStatusFromEntries(?ProductionPlan $plan): void
+    {
+        if (!$plan) {
+            return;
+        }
+
+        $total = $plan->entries()->count();
+
+        if ($total === 0) {
+            $plan->update(['status' => 'planned']);
+            return;
+        }
+
+        $sent = $plan->entries()->where('entry_status', 'sent_to_thingsboard')->count();
+
+        if ($sent === $total) {
+            $plan->update(['status' => 'completed']);
+            return;
+        }
+
+        $plan->update(['status' => 'in_progress']);
     }
 
     private function applyUserScope($query): void

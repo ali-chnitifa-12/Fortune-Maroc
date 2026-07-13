@@ -1,36 +1,58 @@
 <x-app-layout>
+    @php
+        $returnUrl = request('return_url', route('production-entries.index'));
+    @endphp
+
     <x-slot name="header">
         <div class="erp-page-head">
             <div>
-                <h2 class="erp-page-title">Edit Production Entry</h2>
+                <h2 class="erp-page-title">{{ __('Production Entry') }}</h2>
                 <div class="erp-page-subtitle">
-                    Complete production quantities and manage machine downtime.
+                    {{ __('Update hourly production data and manage machine downtime at shift level.') }}
                 </div>
             </div>
 
-            <a href="{{ route('production-entries.index') }}" class="erp-btn erp-btn-secondary">
-                Back to Entries
+            <a href="{{ $returnUrl }}" class="erp-btn erp-btn-secondary">
+                {{ __('Back to Entries') }}
             </a>
         </div>
     </x-slot>
 
     @php
         $activeTab = request('tab', 'production');
+
         $isDraft = $entry->entry_status === 'draft';
         $isFinished = $entry->entry_status === 'finished';
         $isSent = $entry->entry_status === 'sent_to_thingsboard';
 
         $actualQty = old('actual_qty', $entry->actual_qty ?? 0);
         $rejectedQty = old('rejected_qty', $entry->rejected_qty ?? 0);
-        $chuteQty = old('chute_qty', $entry->chute_qty ?? 0);
+        $chute1Qty = old('chute_1_qty', $entry->chute_1_qty ?? 0);
+        $chute2Qty = old('chute_2_qty', $entry->chute_2_qty ?? 0);
+        $chute3Qty = old('chute_3_qty', $entry->chute_3_qty ?? 0);
 
-        $openDowntime = $entry->downtimes->firstWhere('ended_at', null);
+        $planDowntimes = $plan ? $plan->downtimes : collect();
+        $openDowntime = $planDowntimes->firstWhere('ended_at', null);
+
+        $statusLabel = match ($entry->entry_status) {
+            'draft' => __('Draft'),
+            'finished' => __('Finished'),
+            'sent_to_thingsboard' => __('Sent To ThingsBoard'),
+            default => __(ucwords(str_replace('_', ' ', $entry->entry_status ?? '-'))),
+        };
+
+        $statusClass = match ($entry->entry_status) {
+            'draft' => 'erp-pill-warning',
+            'finished' => 'erp-pill-info',
+            'sent_to_thingsboard' => 'erp-pill-success',
+            default => 'erp-pill-neutral',
+        };
     @endphp
 
     <div class="erp-page-wrap">
         @if(session('success'))
             <div class="fortune-success">
-                {{ session('success') }}
+                {{ __(session('success')) }}
             </div>
         @endif
 
@@ -38,21 +60,69 @@
             <div class="fortune-error">
                 <ul style="list-style:disc;margin-left:20px;">
                     @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
+                        <li>{{ __($error) }}</li>
                     @endforeach
                 </ul>
             </div>
         @endif
 
+        <div class="shift-context-card">
+            <div>
+                <div class="context-label">{{ __('Plan') }}</div>
+                <div class="context-value">{{ $plan?->plan_code ?? '-' }}</div>
+            </div>
+
+            <div>
+                <div class="context-label">{{ __('Entry') }}</div>
+                <div class="context-value">{{ $entry->entry_code ?? '-' }}</div>
+            </div>
+
+            <div>
+                <div class="context-label">{{ __('Date') }}</div>
+                <div class="context-value">{{ $entry->production_date?->format('d/m/Y') ?? '-' }}</div>
+            </div>
+
+            <div>
+                <div class="context-label">{{ __('Hour') }}</div>
+                <div class="context-value">
+                    {{ $entry->hour_start ? substr($entry->hour_start, 0, 5) : '-' }}
+                    -
+                    {{ $entry->hour_end ? substr($entry->hour_end, 0, 5) : '-' }}
+                </div>
+            </div>
+
+            <div>
+                <div class="context-label">{{ __('Shift') }}</div>
+                <div class="context-value">{{ $entry->shift?->code ?? '-' }}</div>
+            </div>
+
+            <div>
+                <div class="context-label">{{ __('Line') }}</div>
+                <div class="context-value">{{ $entry->productionLine?->code ?? '-' }}</div>
+            </div>
+
+            <div>
+                <div class="context-label">{{ __('Product') }}</div>
+                <div class="context-value">{{ $entry->product?->code ?? '-' }}</div>
+            </div>
+
+            <div>
+                <div class="context-label">{{ __('Status') }}</div>
+                <div class="context-value">
+                    <span class="erp-pill {{ $statusClass }}">{{ $statusLabel }}</span>
+                </div>
+            </div>
+        </div>
+
         <div class="erp-tabs">
-            <a href="{{ route('production-entries.edit', ['production_entry' => $entry->id, 'tab' => 'production']) }}"
+            <a href="{{ route('production-entries.edit', ['production_entry' => $entry->id, 'tab' => 'production', 'return_url' => $returnUrl]) }}"
                class="erp-tab {{ $activeTab === 'production' ? 'active' : '' }}">
-                Production Entry
+                {{ __('Production Entry') }}
             </a>
 
-            <a href="{{ route('production-entries.edit', ['production_entry' => $entry->id, 'tab' => 'downtime']) }}"
+            <a href="{{ route('production-entries.edit', ['production_entry' => $entry->id, 'tab' => 'downtime', 'return_url' => $returnUrl]) }}"
                class="erp-tab {{ $activeTab === 'downtime' ? 'active' : '' }}">
-                Machine Downtime
+                {{ __('Shift Machine Downtime') }}
             </a>
         </div>
 
@@ -63,56 +133,69 @@
                       action="{{ route('production-entries.update', $entry) }}">
                     @csrf
                     @method('PUT')
+                    <input type="hidden" name="return_url" value="{{ $returnUrl }}">
+
+                    <div class="entry-section-head">
+                        <div>
+                            <h3 class="section-title">{{ __('Production Data') }}</h3>
+                            <div class="section-subtitle">
+                                {{ __('Enter actual quantity, rejected quantity and chute information for this hour.') }}
+                            </div>
+                        </div>
+
+                        <span class="erp-pill {{ $statusClass }}">{{ $statusLabel }}</span>
+                    </div>
 
                     <div class="entry-grid">
                         <div>
-                        <label>Entry Code</label>
-                        <input type="text" value="{{ $entry->entry_code ?? '-' }}" readonly>
+                            <label>{{ __('Entry Code') }}</label>
+                            <input type="text" value="{{ $entry->entry_code ?? '-' }}" readonly>
                         </div>
 
                         <div>
-                            <label>Plan Code</label>
-                            <input type="text" value="{{ $entry->productionPlan?->plan_code ?? '-' }}" readonly>
+                            <label>{{ __('Plan Code') }}</label>
+                            <input type="text" value="{{ $plan?->plan_code ?? '-' }}" readonly>
                         </div>
+
                         <div>
-                            <label>Production Date</label>
+                            <label>{{ __('Production Date') }}</label>
                             <input type="text" value="{{ $entry->production_date?->format('d/m/Y') }}" readonly>
                         </div>
 
                         <div>
-                            <label>Shift</label>
+                            <label>{{ __('Shift') }}</label>
                             <input type="text" value="{{ $entry->shift?->code }} - {{ $entry->shift?->name }}" readonly>
                         </div>
 
                         <div>
-                            <label>Zone</label>
+                            <label>{{ __('Zone') }}</label>
                             <input type="text" value="{{ $entry->zone?->code }} - {{ $entry->zone?->name }}" readonly>
                         </div>
 
                         <div>
-                            <label>Production Line</label>
+                            <label>{{ __('Production Line') }}</label>
                             <input type="text" value="{{ $entry->productionLine?->code }} - {{ $entry->productionLine?->name }}" readonly>
                         </div>
 
                         <div>
-                            <label>Product</label>
+                            <label>{{ __('Product') }}</label>
                             <input type="text" value="{{ $entry->product?->code }} - {{ $entry->product?->name }}" readonly>
                         </div>
 
                         <div>
-                            <label>Hour</label>
+                            <label>{{ __('Hour') }}</label>
                             <input type="text"
                                    value="{{ $entry->hour_start ? substr($entry->hour_start, 0, 5) : '-' }} - {{ $entry->hour_end ? substr($entry->hour_end, 0, 5) : '-' }}"
                                    readonly>
                         </div>
 
                         <div>
-                            <label>Planned Qty</label>
+                            <label>{{ __('Planned Qty') }}</label>
                             <input type="text" value="{{ number_format((float) $entry->planned_qty, 2, ',', ' ') }}" readonly>
                         </div>
 
                         <div>
-                            <label>Actual Qty <span class="required">*</span></label>
+                            <label>{{ __('Actual Qty') }} <span class="required">*</span></label>
                             <input type="number"
                                    step="0.01"
                                    min="0"
@@ -121,12 +204,12 @@
                                    value="{{ $actualQty }}"
                                    {{ !$isDraft ? 'readonly' : '' }}>
                             <div class="erp-help-text">
-                                Required before update or finish.
+                                {{ __('Required before update or finish.') }}
                             </div>
                         </div>
 
                         <div>
-                            <label>Rejected Qty <span class="required">*</span></label>
+                            <label>{{ __('Rejected Qty') }} <span class="required">*</span></label>
                             <input type="number"
                                    step="0.01"
                                    min="0"
@@ -135,63 +218,75 @@
                                    value="{{ $rejectedQty }}"
                                    {{ !$isDraft ? 'readonly' : '' }}>
                             <div class="erp-help-text">
-                                Product quantity. Used in Good Qty and OEE calculation.
+                                {{ __('Product quantity. Used in Good Qty and OEE calculation.') }}
                             </div>
                         </div>
 
                         <div>
-                            <label>Chute</label>
-                            <input type="number"
-                                   step="0.01"
-                                   min="0"
-                                   id="chute_qty"
-                                   name="chute_qty"
-                                   value="{{ $chuteQty }}"
-                                   {{ !$isDraft ? 'readonly' : '' }}>
-                            <div class="erp-help-text">
-                                Separate information field. Not used in OEE calculation.
-                            </div>
-                        </div>
-
-                        <div>
-                            <label>Entry Status</label>
-                            <input type="text" value="{{ ucwords(str_replace('_', ' ', $entry->entry_status)) }}" readonly>
-                        </div>
-
-                        <div>
-                            <label>Machine Status</label>
-                            <input type="text" value="{{ ucwords(str_replace('_', ' ', $entry->machine_status)) }}" readonly>
-                        </div>
-
-                        <div>
-                            <label>Good Qty</label>
+                            <label>{{ __('Good Qty') }}</label>
                             <input type="text" value="{{ number_format((float) $entry->good_qty, 2, ',', ' ') }}" readonly>
                         </div>
 
                         <div>
-                            <label>Stops Count</label>
+                            <label>{{ __('Chute 1') }}</label>
+                            <input type="number"
+                                   step="0.01"
+                                   min="0"
+                                   id="chute_1_qty"
+                                   name="chute_1_qty"
+                                   value="{{ $chute1Qty }}"
+                                   {{ !$isDraft ? 'readonly' : '' }}>
+                            <div class="erp-help-text">{{ __('Separate information field.') }}</div>
+                        </div>
+
+                        <div>
+                            <label>{{ __('Chute 2') }}</label>
+                            <input type="number"
+                                   step="0.01"
+                                   min="0"
+                                   id="chute_2_qty"
+                                   name="chute_2_qty"
+                                   value="{{ $chute2Qty }}"
+                                   {{ !$isDraft ? 'readonly' : '' }}>
+                            <div class="erp-help-text">{{ __('Separate information field.') }}</div>
+                        </div>
+
+                        <div>
+                            <label>{{ __('Chute 3') }}</label>
+                            <input type="number"
+                                   step="0.01"
+                                   min="0"
+                                   id="chute_3_qty"
+                                   name="chute_3_qty"
+                                   value="{{ $chute3Qty }}"
+                                   {{ !$isDraft ? 'readonly' : '' }}>
+                            <div class="erp-help-text">{{ __('Separate information field.') }}</div>
+                        </div>
+
+                        <div>
+                            <label>{{ __('Shift Stops Count') }}</label>
                             <input type="text" value="{{ (int) $entry->stops_count }}" readonly>
                         </div>
 
                         <div>
-                            <label>Stopped Time</label>
-                            <input type="text" value="{{ (int) $entry->stop_duration_min }} min" readonly>
+                            <label>{{ __('Shift Stopped Time') }}</label>
+                            <input type="text" value="{{ (int) $entry->stop_duration_min }} {{ __('min') }}" readonly>
                         </div>
 
                         <div>
-                            <label>OEE Preview</label>
+                            <label>{{ __('OEE Preview') }}</label>
                             <input type="text" value="{{ number_format((float) $entry->oee, 2, '.', '') }}%" readonly>
                         </div>
 
                         <div class="entry-full">
-                            <label>Comment</label>
+                            <label>{{ __('Comment') }}</label>
                             <textarea name="comment" rows="4" {{ !$isDraft ? 'readonly' : '' }}>{{ old('comment', $entry->comment ?? '') }}</textarea>
                         </div>
                     </div>
 
                     @if($isDraft)
                         <div class="entry-warning">
-                            Actual Qty is required to calculate OEE correctly. Chute is a separate information field and does not affect OEE.
+                            {{ __('Chute 1, Chute 2 and Chute 3 are separate information fields and do not affect OEE.') }}
                         </div>
                     @endif
 
@@ -200,13 +295,13 @@
                             <button type="submit"
                                     class="erp-btn erp-btn-primary"
                                     onclick="return validateUpdateEntry();">
-                                Update Entry
+                                {{ __('Update Entry') }}
                             </button>
 
                             <button type="button"
                                     class="erp-btn erp-btn-success"
                                     onclick="confirmFinishEntry();">
-                                Finish Entry
+                                {{ __('Finish Entry') }}
                             </button>
                         @endif
 
@@ -214,12 +309,12 @@
                             <button type="button"
                                     class="erp-btn erp-btn-success"
                                     onclick="confirmApproveEntry();">
-                                Approve & Send to ThingsBoard
+                                {{ __('Approve & Send to ThingsBoard') }}
                             </button>
                         @endif
 
-                        <a href="{{ route('production-entries.index') }}" class="erp-btn erp-btn-secondary">
-                            Back
+                        <a href="{{ $returnUrl }}" class="erp-btn erp-btn-secondary">
+                            {{ __('Back') }}
                         </a>
                     </div>
                 </form>
@@ -230,6 +325,7 @@
                           action="{{ route('production-entries.finish', $entry) }}"
                           style="display:none;">
                         @csrf
+                        <input type="hidden" name="return_url" value="{{ $returnUrl }}">
                     </form>
                 @endif
 
@@ -239,6 +335,7 @@
                           action="{{ route('production-entries.approve', $entry) }}"
                           style="display:none;">
                         @csrf
+                        <input type="hidden" name="return_url" value="{{ $returnUrl }}">
                     </form>
                 @endif
             </div>
@@ -248,43 +345,44 @@
             <div class="erp-card">
                 <div class="downtime-head">
                     <div>
-                        <h3 class="section-title">Machine Stop / Fixed</h3>
+                        <h3 class="section-title">{{ __('Shift Machine Stop / Fixed') }}</h3>
                         <div class="section-subtitle">
-                            Select the stopped machine from this production line only.
+                            {{ __('Machine downtime is linked to the full production plan/shift, not only this hour.') }}
                         </div>
                     </div>
 
                     <div>
                         @if($openDowntime)
-                            <span class="erp-pill erp-pill-danger">Machine In Repair</span>
+                            <span class="erp-pill erp-pill-danger">{{ __('Machine In Repair') }}</span>
                         @else
-                            <span class="erp-pill erp-pill-success">Machine Active</span>
+                            <span class="erp-pill erp-pill-success">{{ __('Machine Active') }}</span>
                         @endif
                     </div>
                 </div>
 
                 @if($openDowntime)
                     <div class="entry-warning">
-                        Current machine stop is open. Click Fixed Machine after repair.
+                        {{ __('Current shift machine stop is open. Click Fixed Machine after repair.') }}
                     </div>
                 @else
                     <div class="entry-info">
-                        No open machine stop. You can declare a new stop if a machine is stopped.
+                        {{ __('No open machine stop for this shift. You can declare a new stop if a machine is stopped.') }}
                     </div>
                 @endif
 
-                @if($isDraft)
+                @if($isDraft || $isFinished)
                     @if(!$openDowntime)
                         <form id="stopMachineForm"
                               method="POST"
                               action="{{ route('production-entries.stop', $entry) }}">
                             @csrf
+                            <input type="hidden" name="return_url" value="{{ $returnUrl }}">
 
                             <div class="entry-grid">
                                 <div>
-                                    <label>Stopped Machine <span class="required">*</span></label>
+                                    <label>{{ __('Stopped Machine') }} <span class="required">*</span></label>
                                     <select name="machine_id" id="machine_id">
-                                        <option value="">Select machine</option>
+                                        <option value="">{{ __('Select machine') }}</option>
                                         @foreach($lineMachines as $machine)
                                             <option value="{{ $machine->id }}">
                                                 {{ $machine->code }} - {{ $machine->name }}
@@ -292,43 +390,7 @@
                                         @endforeach
                                     </select>
                                     <div class="erp-help-text">
-                                        Machine list depends on selected production line.
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label>Actual Qty</label>
-                                    <input type="number"
-                                           step="0.01"
-                                           min="0"
-                                           name="actual_qty"
-                                           value="{{ $actualQty }}">
-                                    <div class="erp-help-text">
-                                        Optional during stop. You can fill it later.
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label>Rejected Qty</label>
-                                    <input type="number"
-                                           step="0.01"
-                                           min="0"
-                                           name="rejected_qty"
-                                           value="{{ $rejectedQty }}">
-                                    <div class="erp-help-text">
-                                        Optional during stop. Must not exceed Actual Qty if filled.
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label>Chute</label>
-                                    <input type="number"
-                                           step="0.01"
-                                           min="0"
-                                           name="chute_qty"
-                                           value="{{ $chuteQty }}">
-                                    <div class="erp-help-text">
-                                        Optional during stop. Separate information field only.
+                                        {{ __('Machine list depends on selected production line.') }}
                                     </div>
                                 </div>
                             </div>
@@ -337,7 +399,7 @@
                                 <button type="submit"
                                         class="erp-btn erp-btn-danger"
                                         onclick="return validateStopMachine();">
-                                    Stop Machine
+                                    {{ __('Stop Machine') }}
                                 </button>
                             </div>
                         </form>
@@ -346,10 +408,11 @@
                               method="POST"
                               action="{{ route('production-entries.fixed', $entry) }}">
                             @csrf
+                            <input type="hidden" name="return_url" value="{{ $returnUrl }}">
 
                             <div class="erp-form-actions">
                                 <button type="submit" class="erp-btn erp-btn-primary">
-                                    Fixed Machine
+                                    {{ __('Fixed Machine') }}
                                 </button>
                             </div>
                         </form>
@@ -360,57 +423,54 @@
             <div class="erp-card">
                 <div class="downtime-head">
                     <div>
-                        <h3 class="section-title">Downtime Lines</h3>
+                        <h3 class="section-title">{{ __('Shift Downtime Lines') }}</h3>
                         <div class="section-subtitle">
-                            Category and reason are mandatory before finishing the entry.
+                            {{ __('Category and reason are mandatory before finishing entries.') }}
                         </div>
                     </div>
                 </div>
 
-                <div class="erp-responsive-table">
-                    <table class="erp-table">
+                <div class="erp-responsive-table downtime-table-wrap">
+                    <table class="erp-table downtime-table">
                         <thead>
                             <tr>
-                                <th>Machine</th>
-                                <th>Started</th>
-                                <th>Ended</th>
-                                <th>Duration</th>
-                                <th>Category</th>
-                                <th>Reason</th>
-                                <th>Comment</th>
-                                <th>Action</th>
+                                <th>{{ __('Machine') }}</th>
+                                <th>{{ __('Started') }}</th>
+                                <th>{{ __('Ended') }}</th>
+                                <th>{{ __('Duration') }}</th>
+                                <th>{{ __('Category') }}</th>
+                                <th>{{ __('Reason') }}</th>
+                                <th>{{ __('Comment') }}</th>
+                                <th>{{ __('Action') }}</th>
                             </tr>
                         </thead>
 
                         <tbody>
-                            @forelse($entry->downtimes as $downtime)
+                            @forelse($planDowntimes as $downtime)
                                 <tr>
-                                    <td>
-                                        {{ $downtime->machine?->code }}
-                                    </td>
+                                    <td>{{ $downtime->machine?->code }}</td>
 
                                     <td>
                                         {{ $downtime->started_at ? $downtime->started_at->format('H:i:s') : '-' }}
                                     </td>
 
                                     <td>
-                                        {{ $downtime->ended_at ? $downtime->ended_at->format('H:i:s') : 'Open' }}
+                                        {{ $downtime->ended_at ? $downtime->ended_at->format('H:i:s') : __('Open') }}
                                     </td>
 
-                                    <td>
-                                        {{ (int) $downtime->duration_min }} min
-                                    </td>
+                                    <td>{{ (int) $downtime->duration_min }} {{ __('min') }}</td>
 
                                     <td>
-                                        @if($downtime->ended_at && $isDraft)
+                                        @if($downtime->ended_at && !$isSent)
                                             <form id="downtimeForm{{ $downtime->id }}"
                                                   method="POST"
                                                   action="{{ route('production-downtimes.update', $downtime) }}">
                                                 @csrf
                                                 @method('PUT')
+                                                <input type="hidden" name="return_url" value="{{ $returnUrl }}">
 
                                                 <select name="downtime_category_id">
-                                                    <option value="">Select</option>
+                                                    <option value="">{{ __('Select') }}</option>
                                                     @foreach($downtimeCategories as $category)
                                                         <option value="{{ $category->id }}"
                                                             {{ (int) $downtime->downtime_category_id === (int) $category->id ? 'selected' : '' }}>
@@ -425,10 +485,10 @@
                                     </td>
 
                                     <td>
-                                        @if($downtime->ended_at && $isDraft)
+                                        @if($downtime->ended_at && !$isSent)
                                             <select name="downtime_reason_id"
                                                     form="downtimeForm{{ $downtime->id }}">
-                                                <option value="">Select</option>
+                                                <option value="">{{ __('Select') }}</option>
                                                 @foreach($downtimeReasons as $reason)
                                                     <option value="{{ $reason->id }}"
                                                         {{ (int) $downtime->downtime_reason_id === (int) $reason->id ? 'selected' : '' }}>
@@ -442,7 +502,7 @@
                                     </td>
 
                                     <td>
-                                        @if($downtime->ended_at && $isDraft)
+                                        @if($downtime->ended_at && !$isSent)
                                             <input type="text"
                                                    name="comment"
                                                    form="downtimeForm{{ $downtime->id }}"
@@ -453,23 +513,23 @@
                                     </td>
 
                                     <td>
-                                        @if($downtime->ended_at && $isDraft)
+                                        @if($downtime->ended_at && !$isSent)
                                             <button type="submit"
                                                     form="downtimeForm{{ $downtime->id }}"
                                                     class="erp-btn erp-btn-small erp-btn-primary">
-                                                Save
+                                                {{ __('Save') }}
                                             </button>
                                         @elseif(!$downtime->ended_at)
-                                            <span class="erp-pill erp-pill-danger">In Repair</span>
+                                            <span class="erp-pill erp-pill-danger">{{ __('In Repair') }}</span>
                                         @else
-                                            <span class="erp-pill erp-pill-success">Saved</span>
+                                            <span class="erp-pill erp-pill-success">{{ __('Saved') }}</span>
                                         @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
                                     <td colspan="8" class="erp-empty">
-                                        No downtime lines found.
+                                        {{ __('No shift downtime lines found.') }}
                                     </td>
                                 </tr>
                             @endforelse
@@ -482,7 +542,7 @@
                         <button type="button"
                                 class="erp-btn erp-btn-success"
                                 onclick="confirmFinishEntry();">
-                            Finish Entry
+                            {{ __('Finish Entry') }}
                         </button>
                     </div>
 
@@ -491,6 +551,7 @@
                           action="{{ route('production-entries.finish', $entry) }}"
                           style="display:none;">
                         @csrf
+                        <input type="hidden" name="return_url" value="{{ $returnUrl }}">
                     </form>
                 @endif
             </div>
@@ -500,8 +561,8 @@
     <div id="popupOverlay" class="popup-overlay">
         <div class="popup-box">
             <div class="popup-icon">!</div>
-            <div class="popup-title" id="popupTitle">Warning</div>
-            <div class="popup-message" id="popupMessage">Message</div>
+            <div class="popup-title" id="popupTitle">{{ __('Warning') }}</div>
+            <div class="popup-message" id="popupMessage">{{ __('Message') }}</div>
             <button type="button" class="erp-btn erp-btn-primary" onclick="closePopup()">
                 OK
             </button>
@@ -511,8 +572,35 @@
     @include('components.erp-page-style')
 
     <style>
+        .shift-context-card {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+            padding: 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+        }
+
+        .context-label {
+            font-size: 11px;
+            font-weight: 900;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .context-value {
+            margin-top: 4px;
+            font-size: 13px;
+            font-weight: 900;
+            color: #0f172a;
+        }
+
         .erp-tabs {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             margin-bottom: 14px;
             padding: 10px;
@@ -537,6 +625,29 @@
         .erp-tab.active {
             background: #2563eb;
             color: #ffffff;
+        }
+
+        .entry-section-head,
+        .downtime-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 900;
+            color: #0f172a;
+        }
+
+        .section-subtitle {
+            margin-top: 5px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
         }
 
         .entry-grid {
@@ -572,10 +683,16 @@
             height: 38px;
         }
 
+        .entry-grid textarea {
+            resize: vertical;
+            min-height: 95px;
+        }
+
         .entry-grid input[readonly],
         .entry-grid textarea[readonly] {
             background: #f8fafc;
             color: #475569;
+            cursor: not-allowed;
         }
 
         .entry-full {
@@ -591,6 +708,7 @@
             font-size: 11px;
             font-weight: 700;
             color: #64748b;
+            line-height: 1.4;
         }
 
         .entry-warning {
@@ -615,6 +733,15 @@
             font-weight: 900;
         }
 
+        .downtime-table-wrap {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+
+        .downtime-table {
+            min-width: 980px;
+        }
+
         .erp-form-actions {
             margin-top: 18px;
             display: flex;
@@ -625,11 +752,23 @@
 
         .erp-btn-success {
             background: #16a34a;
+            border-color: #16a34a;
+            color: #ffffff;
+        }
+
+        .erp-btn-success:hover {
+            background: #15803d;
             color: #ffffff;
         }
 
         .erp-btn-danger {
             background: #dc2626;
+            border-color: #dc2626;
+            color: #ffffff;
+        }
+
+        .erp-btn-danger:hover {
+            background: #b91c1c;
             color: #ffffff;
         }
 
@@ -639,41 +778,15 @@
             font-size: 12px;
         }
 
-        .downtime-head {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 14px;
-        }
-
-        .section-title {
-            margin: 0;
-            font-size: 17px;
-            font-weight: 900;
-            color: #0f172a;
-        }
-
-        .section-subtitle {
-            margin-top: 5px;
-            font-size: 13px;
-            font-weight: 700;
-            color: #64748b;
-        }
-
-        .erp-pill-danger {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
         .popup-overlay {
             display: none;
             position: fixed;
             inset: 0;
-            z-index: 9999;
+            z-index: 99999;
+            background: rgba(15, 23, 42, 0.55);
             align-items: center;
             justify-content: center;
-            background: rgba(15, 23, 42, 0.45);
-            padding: 20px;
+            padding: 18px;
         }
 
         .popup-overlay.active {
@@ -682,51 +795,61 @@
 
         .popup-box {
             width: 100%;
-            max-width: 470px;
+            max-width: 430px;
+            padding: 24px;
             border-radius: 18px;
             background: #ffffff;
-            padding: 28px 26px;
+            box-shadow: 0 24px 80px rgba(15, 23, 42, 0.3);
             text-align: center;
-            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.25);
         }
 
         .popup-icon {
-            width: 44px;
-            height: 44px;
+            width: 48px;
+            height: 48px;
             margin: 0 auto 14px;
+            border-radius: 999px;
+            background: #fef3c7;
+            color: #92400e;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 999px;
-            background: #fef3c7;
-            color: #b45309;
-            font-size: 24px;
+            font-size: 26px;
             font-weight: 900;
         }
 
         .popup-title {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 900;
             color: #0f172a;
         }
 
         .popup-message {
-            margin: 12px 0 22px;
+            margin: 10px 0 20px;
             font-size: 14px;
-            font-weight: 800;
+            font-weight: 700;
             color: #475569;
             line-height: 1.5;
         }
 
-        @media (max-width: 1100px) {
+        @media (max-width: 1200px) {
+            .shift-context-card {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .entry-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 700px) {
+            .shift-context-card,
             .entry-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .entry-section-head,
+            .downtime-head {
+                flex-direction: column;
             }
 
             .erp-tabs {
@@ -735,10 +858,6 @@
 
             .erp-tab {
                 width: 100%;
-            }
-
-            .downtime-head {
-                flex-direction: column;
             }
 
             .erp-form-actions {
@@ -753,165 +872,119 @@
     </style>
 
     <script>
-        function getActualQty() {
-            const input = document.getElementById('actual_qty');
-
-            if (!input) {
-                return 0;
-            }
-
-            const value = parseFloat(input.value || '0');
-
-            return Number.isNaN(value) ? 0 : value;
-        }
-
-        function getRejectedQty() {
-            const input = document.getElementById('rejected_qty');
-
-            if (!input) {
-                return 0;
-            }
-
-            const value = parseFloat(input.value || '0');
-
-            return Number.isNaN(value) ? 0 : value;
-        }
-
-        function getChuteQty() {
-            const input = document.getElementById('chute_qty');
-
-            if (!input) {
-                return 0;
-            }
-
-            const value = parseFloat(input.value || '0');
-
-            return Number.isNaN(value) ? 0 : value;
-        }
+        const messages = {
+            actualRequiredTitle: @json(__('Actual Quantity Required')),
+            actualRequiredMessage: @json(__('Please enter Actual Qty before updating the production entry.')),
+            finishActualMessage: @json(__('Please click Update Entry after entering Actual Qty before finishing.')),
+            rejectedInvalidTitle: @json(__('Rejected Quantity Invalid')),
+            rejectedInvalidMessage: @json(__('Rejected Qty cannot be greater than Actual Qty.')),
+            quantityInvalidTitle: @json(__('Quantity Invalid')),
+            quantityInvalidMessage: @json(__('Rejected Qty and Chute fields cannot be negative.')),
+            machineRequiredTitle: @json(__('Machine Required')),
+            machineRequiredMessage: @json(__('Please select the stopped machine.')),
+            finishConfirm: @json(__('Finish this production entry?')),
+            approveConfirm: @json(__('Approve this entry and send it automatically to ThingsBoard?'))
+        };
 
         function showPopup(title, message) {
-            document.getElementById('popupTitle').innerText = title;
-            document.getElementById('popupMessage').innerText = message;
-            document.getElementById('popupOverlay').classList.add('active');
+            const overlay = document.getElementById('popupOverlay');
+            const popupTitle = document.getElementById('popupTitle');
+            const popupMessage = document.getElementById('popupMessage');
+
+            popupTitle.textContent = title;
+            popupMessage.textContent = message;
+            overlay.classList.add('active');
         }
 
         function closePopup() {
-            document.getElementById('popupOverlay').classList.remove('active');
+            const overlay = document.getElementById('popupOverlay');
+            overlay.classList.remove('active');
+        }
+
+        function numberValue(id) {
+            const element = document.getElementById(id);
+
+            if (!element) {
+                return 0;
+            }
+
+            const value = parseFloat(element.value);
+
+            if (Number.isNaN(value)) {
+                return 0;
+            }
+
+            return value;
+        }
+
+        function validateProductionQuantities() {
+            const actualQty = numberValue('actual_qty');
+            const rejectedQty = numberValue('rejected_qty');
+            const chute1Qty = numberValue('chute_1_qty');
+            const chute2Qty = numberValue('chute_2_qty');
+            const chute3Qty = numberValue('chute_3_qty');
+
+            if (actualQty <= 0) {
+                showPopup(messages.actualRequiredTitle, messages.actualRequiredMessage);
+                return false;
+            }
+
+            if (rejectedQty < 0 || chute1Qty < 0 || chute2Qty < 0 || chute3Qty < 0) {
+                showPopup(messages.quantityInvalidTitle, messages.quantityInvalidMessage);
+                return false;
+            }
+
+            if (rejectedQty > actualQty) {
+                showPopup(messages.rejectedInvalidTitle, messages.rejectedInvalidMessage);
+                return false;
+            }
+
+            return true;
         }
 
         function validateUpdateEntry() {
-            const actualQty = getActualQty();
-            const rejectedQty = getRejectedQty();
-            const chuteQty = getChuteQty();
-
-            if (actualQty <= 0) {
-                showPopup(
-                    'Actual Quantity Required',
-                    'Please enter Actual Qty before updating the production entry.'
-                );
-
-                return false;
-            }
-
-            if (rejectedQty < 0) {
-                showPopup(
-                    'Rejected Quantity Invalid',
-                    'Rejected Qty cannot be negative.'
-                );
-
-                return false;
-            }
-
-            if (chuteQty < 0) {
-                showPopup(
-                    'Chute Invalid',
-                    'Chute cannot be negative.'
-                );
-
-                return false;
-            }
-
-            if (rejectedQty > actualQty) {
-                showPopup(
-                    'Rejected Quantity Invalid',
-                    'Rejected Qty cannot be greater than Actual Qty.'
-                );
-
-                return false;
-            }
-
-            return true;
-        }
-
-        function validateStopMachine() {
-            const machineId = document.getElementById('machine_id')?.value || '';
-
-            if (!machineId) {
-                showPopup(
-                    'Machine Required',
-                    'Please select the stopped machine.'
-                );
-
-                return false;
-            }
-
-            return true;
+            return validateProductionQuantities();
         }
 
         function confirmFinishEntry() {
-            const actualQty = getActualQty();
-            const rejectedQty = getRejectedQty();
-            const chuteQty = getChuteQty();
-
-            if (actualQty <= 0) {
-                showPopup(
-                    'Actual Quantity Required',
-                    'Please click Update Entry after entering Actual Qty before finishing.'
-                );
-
-                return false;
+            if (!validateProductionQuantities()) {
+                return;
             }
 
-            if (rejectedQty < 0) {
-                showPopup(
-                    'Rejected Quantity Invalid',
-                    'Rejected Qty cannot be negative.'
-                );
+            if (confirm(messages.finishConfirm)) {
+                const form = document.getElementById('finishForm');
 
-                return false;
+                if (form) {
+                    form.submit();
+                }
             }
-
-            if (chuteQty < 0) {
-                showPopup(
-                    'Chute Invalid',
-                    'Chute cannot be negative.'
-                );
-
-                return false;
-            }
-
-            if (rejectedQty > actualQty) {
-                showPopup(
-                    'Rejected Quantity Invalid',
-                    'Rejected Qty cannot be greater than Actual Qty.'
-                );
-
-                return false;
-            }
-
-            if (confirm('Finish this production entry?')) {
-                document.getElementById('finishForm').submit();
-            }
-
-            return false;
         }
 
         function confirmApproveEntry() {
-            if (confirm('Approve and send this entry to ThingsBoard?')) {
-                document.getElementById('approveForm').submit();
+            if (confirm(messages.approveConfirm)) {
+                const form = document.getElementById('approveForm');
+
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+
+        function validateStopMachine() {
+            const machineSelect = document.getElementById('machine_id');
+
+            if (!machineSelect || !machineSelect.value) {
+                showPopup(messages.machineRequiredTitle, messages.machineRequiredMessage);
+                return false;
             }
 
-            return false;
+            return true;
         }
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closePopup();
+            }
+        });
     </script>
 </x-app-layout>

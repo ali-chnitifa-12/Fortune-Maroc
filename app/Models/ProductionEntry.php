@@ -25,6 +25,9 @@ class ProductionEntry extends Model
         'actual_qty',
         'rejected_qty',
         'chute_qty',
+        'chute_1_qty',
+        'chute_2_qty',
+        'chute_3_qty',
         'good_qty',
         'machine_status',
         'entry_status',
@@ -52,6 +55,9 @@ class ProductionEntry extends Model
         'actual_qty' => 'decimal:2',
         'rejected_qty' => 'decimal:2',
         'chute_qty' => 'decimal:2',
+        'chute_1_qty' => 'decimal:2',
+        'chute_2_qty' => 'decimal:2',
+        'chute_3_qty' => 'decimal:2',
         'good_qty' => 'decimal:2',
         'availability' => 'decimal:2',
         'performance' => 'decimal:2',
@@ -124,6 +130,11 @@ class ProductionEntry extends Model
     public function downtimes()
     {
         return $this->hasMany(ProductionDowntime::class, 'production_entry_id');
+    }
+
+    public function planDowntimes()
+    {
+        return $this->hasMany(ProductionDowntime::class, 'production_plan_id', 'production_plan_id');
     }
 
     public function creator()
