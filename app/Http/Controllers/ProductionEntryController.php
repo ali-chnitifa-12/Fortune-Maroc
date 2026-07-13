@@ -227,8 +227,7 @@ class ProductionEntryController extends Controller
         $this->syncAllPlanEntriesKpis($production_entry->productionPlan);
         $this->syncPlanStatusFromEntries($production_entry->productionPlan);
 
-        return redirect($this->returnUrl($request))
-            ->with('success', 'Production entry updated successfully.');
+        return back()->with('success', 'Production entry updated successfully.');
     }
 
     public function stopMachine(Request $request, ProductionEntry $production_entry)
@@ -288,11 +287,11 @@ class ProductionEntryController extends Controller
         $this->sendMachineStopTelemetry($production_entry->fresh(), $downtime->fresh());
 
         return redirect()
-            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
+            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
             ->with('success', 'Machine stop declared for the shift.');
     }
 
-    public function fixedMachine(Request $request, ProductionEntry $production_entry)
+    public function fixedMachine(ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -334,11 +333,11 @@ class ProductionEntryController extends Controller
         $this->sendMachineFixedTelemetry($freshEntry, $downtime);
 
         return redirect()
-            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
+            ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
             ->with('success', 'Machine fixed for the shift.');
     }
 
-    public function finishEntry(Request $request, ProductionEntry $production_entry)
+    public function finishEntry(ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -358,7 +357,7 @@ class ProductionEntryController extends Controller
 
         if ($openDowntime) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
                 ->withErrors([
                     'downtime' => 'You must fix the stopped machine before finishing the entry.',
                 ]);
@@ -374,7 +373,7 @@ class ProductionEntryController extends Controller
 
         if ($invalidDowntime) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime', 'return_url' => $this->returnUrl($request)])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'downtime'])
                 ->withErrors([
                     'downtime' => 'Downtime category and reason are mandatory before finishing entries.',
                 ]);
@@ -382,7 +381,7 @@ class ProductionEntryController extends Controller
 
         if ((float) $production_entry->actual_qty <= 0) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production', 'return_url' => $this->returnUrl($request)])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production'])
                 ->withErrors([
                     'actual_qty' => 'Actual Qty is required before finishing the entry.',
                 ]);
@@ -390,7 +389,7 @@ class ProductionEntryController extends Controller
 
         if ((float) $production_entry->rejected_qty > (float) $production_entry->actual_qty) {
             return redirect()
-                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production', 'return_url' => $this->returnUrl($request)])
+                ->route('production-entries.edit', ['production_entry' => $production_entry->id, 'tab' => 'production'])
                 ->withErrors([
                     'rejected_qty' => 'Rejected Qty cannot be greater than Actual Qty.',
                 ]);
@@ -412,11 +411,11 @@ class ProductionEntryController extends Controller
         $this->syncAllPlanEntriesKpis($production_entry->productionPlan);
         $this->syncPlanStatusFromEntries($production_entry->productionPlan);
 
-        return redirect($this->returnUrl($request))
+        return redirect()->route('production-entries.index')
             ->with('success', 'Production entry finished successfully. Waiting for Responsable Production approval.');
     }
 
-    public function approveEntry(Request $request, ProductionEntry $production_entry)
+    public function approveEntry(ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -499,11 +498,11 @@ class ProductionEntryController extends Controller
             }
         }
 
-        return redirect($this->returnUrl($request))
+        return redirect()->route('production-entries.index')
             ->with('success', 'Production entry approved and sent to ThingsBoard successfully.');
     }
 
-    public function destroy(Request $request, ProductionEntry $production_entry)
+    public function destroy(ProductionEntry $production_entry)
     {
         $this->ensureUserCanAccessEntry($production_entry);
 
@@ -525,26 +524,8 @@ class ProductionEntryController extends Controller
             $this->syncPlanStatusFromEntries($plan);
         });
 
-        return redirect($this->returnUrl($request))
+        return redirect()->route('production-entries.index')
             ->with('success', 'Production entry deleted successfully.');
-    }
-
-
-    private function returnUrl(Request $request): string
-    {
-        $returnUrl = (string) $request->input('return_url', '');
-
-        if ($returnUrl !== '') {
-            if (str_starts_with($returnUrl, url('/'))) {
-                return $returnUrl;
-            }
-
-            if (str_starts_with($returnUrl, '/')) {
-                return url($returnUrl);
-            }
-        }
-
-        return route('production-entries.index');
     }
 
     private function calculateKpis(ProductionEntry $entry): void

@@ -1,14 +1,10 @@
 <?php
 
-use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\DowntimeCategoryController;
 use App\Http\Controllers\DowntimeReasonController;
-use App\Http\Controllers\EmployeeController;
-use App\Http\Controllers\HrDashboardController;
 use App\Http\Controllers\LineStatusController;
 use App\Http\Controllers\MachineController;
 use App\Http\Controllers\MachineStatusController;
-use App\Http\Controllers\PdfReportController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductionDowntimeController;
 use App\Http\Controllers\ProductionEntryController;
@@ -20,50 +16,25 @@ use App\Http\Controllers\ThingsboardDeviceController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ZoneController;
 use App\Models\ProductionEntry;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Session;
 
 Route::get('/', function () {
-    $user = auth()->user();
-
-    if (!$user) {
-        return redirect()->route('login');
-    }
-
-    if ($user->isRh()) {
-        return redirect()->route('hr-dashboard.index');
-    }
-
-    if ($user->isOperator()) {
-        return redirect()->route('production-entries.index');
-    }
-
     return redirect()->route('dashboard');
 });
 
 Route::get('/language/{locale}', function (string $locale) {
-    if (!in_array($locale, ['fr', 'en'], true)) {
-        abort(404);
+    if (in_array($locale, ['en', 'fr'], true)) {
+        Session::put('locale', $locale);
+        App::setLocale($locale);
     }
-
-    session(['locale' => $locale]);
 
     return back();
 })->name('language.switch');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
-        $user = auth()->user();
-
-        if ($user && $user->isRh()) {
-            return redirect()->route('hr-dashboard.index');
-        }
-
-        if ($user && $user->isOperator()) {
-            return redirect()->route('production-entries.index');
-        }
-
-        abort_unless($user && $user->canViewDashboard(), 403);
-
         $latestEntries = ProductionEntry::with([
             'zone',
             'productionLine',
@@ -96,9 +67,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('production-plans/machines-by-line/{production_line}', [ProductionPlanController::class, 'machinesByLine'])
         ->name('production-plans.machines-by-line');
 
-    Route::get('production-plans/{production_plan}/shift-performance-pdf', [PdfReportController::class, 'productionPlanShift'])
-        ->name('production-plans.shift-performance-pdf');
-
     Route::get('production-plans', [ProductionPlanController::class, 'index'])
         ->name('production-plans.index');
 
@@ -124,9 +92,6 @@ Route::middleware(['auth'])->group(function () {
     | Production Entries
     |--------------------------------------------------------------------------
     */
-
-    Route::get('production-entries/export/hourly-pdf', [PdfReportController::class, 'productionEntriesHourly'])
-        ->name('production-entries.export.hourly-pdf');
 
     Route::post('production-plans/{production_plan}/create-entry', [ProductionEntryController::class, 'createFromPlan'])
         ->name('production-entries.create-from-plan');
@@ -175,9 +140,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('machine-status', [MachineStatusController::class, 'index'])
         ->name('machine-status.index');
 
-    Route::get('line-status/export/pdf', [PdfReportController::class, 'lineKpi'])
-        ->name('line-status.export.pdf');
-
     Route::get('line-status', [LineStatusController::class, 'index'])
         ->name('line-status.index');
 
@@ -196,22 +158,8 @@ Route::middleware(['auth'])->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::get('machines/import', [MachineController::class, 'importForm'])
-        ->name('machines.import.form');
-
-    Route::post('machines/import', [MachineController::class, 'import'])
-        ->name('machines.import');
-
     Route::resource('machines', MachineController::class)->except(['show']);
-
-    Route::get('products/import', [ProductController::class, 'importForm'])
-        ->name('products.import.form');
-
-    Route::post('products/import', [ProductController::class, 'import'])
-        ->name('products.import');
-
     Route::resource('products', ProductController::class)->except(['show']);
-
     Route::resource('shifts', ShiftController::class)->except(['show']);
     Route::resource('downtime-categories', DowntimeCategoryController::class)->except(['show']);
     Route::resource('downtime-reasons', DowntimeReasonController::class)->except(['show']);
@@ -223,28 +171,6 @@ Route::middleware(['auth'])->group(function () {
     */
 
     Route::resource('thingsboard-devices', ThingsboardDeviceController::class)->except(['show']);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Human Resources
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get('hr-dashboard', [HrDashboardController::class, 'index'])
-        ->name('hr-dashboard.index');
-
-    Route::get('employees/import', [EmployeeController::class, 'importForm'])
-        ->name('employees.import.form');
-
-    Route::post('employees/import', [EmployeeController::class, 'import'])
-        ->name('employees.import');
-
-    Route::resource('employees', EmployeeController::class)->except(['show']);
-
-    Route::get('absences/export', [AbsenceController::class, 'export'])
-        ->name('absences.export');
-
-    Route::resource('absences', AbsenceController::class)->except(['show']);
 
     /*
     |--------------------------------------------------------------------------

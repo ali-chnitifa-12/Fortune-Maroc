@@ -111,33 +111,6 @@ class ProductionPlan extends Model
         return $this->hasEntries();
     }
 
-    public function generatedEntriesCount(): int
-    {
-        return $this->entries()->count();
-    }
-
-    public function totalDowntimeMinutes(): int
-    {
-        return (int) $this->downtimes()
-            ->whereNotNull('ended_at')
-            ->sum('duration_min');
-    }
-
-    public function openDowntime()
-    {
-        return $this->downtimes()
-            ->whereNull('ended_at')
-            ->latest('started_at')
-            ->first();
-    }
-
-    public function hasOpenDowntime(): bool
-    {
-        return $this->downtimes()
-            ->whereNull('ended_at')
-            ->exists();
-    }
-
     public function isPlanned(): bool
     {
         return $this->status === 'planned';
@@ -156,5 +129,22 @@ class ProductionPlan extends Model
     public function isCancelled(): bool
     {
         return $this->status === 'cancelled';
+    }
+
+    public function generatedEntriesCount(): int
+    {
+        return $this->entries()->count();
+    }
+
+    public function totalDowntimeMinutes(): int
+    {
+        return (int) $this->downtimes()
+            ->whereNotNull('ended_at')
+            ->sum('duration_min');
+    }
+
+    public function stopsCount(): int
+    {
+        return $this->downtimes()->count();
     }
 }

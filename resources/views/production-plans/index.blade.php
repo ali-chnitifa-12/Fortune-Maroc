@@ -4,7 +4,7 @@
             <div>
                 <h2 class="erp-page-title">Production Planning</h2>
                 <div class="erp-page-subtitle">
-                    Plan production by date, shift, zone, line, product and hour.
+                    Shift-level production plans with automatic hourly entry generation.
                 </div>
             </div>
 
@@ -156,15 +156,14 @@
                         <tr>
                             <th><a class="sort-link" href="{{ $sortUrl('plan_code') }}">Plan Code {{ $sortIcon('plan_code') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('plan_date') }}">Date {{ $sortIcon('plan_date') }}</a></th>
-                            <th><a class="sort-link" href="{{ $sortUrl('hour') }}">Hour {{ $sortIcon('hour') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('shift') }}">Shift {{ $sortIcon('shift') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('zone') }}">Zone {{ $sortIcon('zone') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('line') }}">Line {{ $sortIcon('line') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('product') }}">Product {{ $sortIcon('product') }}</a></th>
-                            <th><a class="sort-link" href="{{ $sortUrl('planned_qty') }}">Planned Qty {{ $sortIcon('planned_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('planned_qty') }}">Shift Planned Qty {{ $sortIcon('planned_qty') }}</a></th>
+                            <th>Generated Entries</th>
                             <th><a class="sort-link" href="{{ $sortUrl('target_oee') }}">Target OEE {{ $sortIcon('target_oee') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('status') }}">Status {{ $sortIcon('status') }}</a></th>
-                            <th>Entry</th>
                             <th class="text-right">Actions</th>
                         </tr>
                     </thead>
@@ -172,22 +171,26 @@
                     <tbody>
                         @forelse($plans as $plan)
                             @php
-                                $hasEntry = $plan->entries && $plan->entries->count() > 0;
-                                $firstEntry = $hasEntry ? $plan->entries->first() : null;
+                                $entriesCount = $plan->entries ? $plan->entries->count() : 0;
+                                $firstEntry = $entriesCount > 0 ? $plan->entries->sortBy('hour_start')->first() : null;
                             @endphp
 
                             <tr>
                                 <td><strong>{{ $plan->plan_code ?? '-' }}</strong></td>
+
                                 <td>{{ $plan->plan_date?->format('Y-m-d') }}</td>
 
                                 <td>
-                                    {{ $plan->hour_start ? substr($plan->hour_start, 0, 5) : '-' }}
-                                    -
-                                    {{ $plan->hour_end ? substr($plan->hour_end, 0, 5) : '-' }}
+                                    <strong>{{ $plan->shift?->code ?? '-' }}</strong>
+                                    <div class="erp-muted-small">
+                                        {{ $plan->hour_start ? substr($plan->hour_start, 0, 5) : '-' }}
+                                        -
+                                        {{ $plan->hour_end ? substr($plan->hour_end, 0, 5) : '-' }}
+                                    </div>
                                 </td>
 
-                                <td>{{ $plan->shift?->code ?? '-' }}</td>
                                 <td>{{ $plan->zone?->code ?? '-' }}</td>
+
                                 <td>{{ $plan->productionLine?->code ?? '-' }}</td>
 
                                 <td>
@@ -196,6 +199,14 @@
                                 </td>
 
                                 <td>{{ number_format((float) $plan->planned_qty, 2) }}</td>
+
+                                <td>
+                                    @if($entriesCount > 0)
+                                        <span class="erp-pill erp-pill-success">{{ $entriesCount }} Entries</span>
+                                    @else
+                                        <span class="erp-pill erp-pill-neutral">No Entries</span>
+                                    @endif
+                                </td>
 
                                 <td>
                                     @if($plan->target_oee !== null)
@@ -219,53 +230,36 @@
                                     @endif
                                 </td>
 
-                                <td>
-                                    @if($hasEntry)
-                                        <span class="erp-pill erp-pill-success">Entry Created</span>
-                                    @else
-                                        <span class="erp-pill erp-pill-neutral">No Entry</span>
-                                    @endif
-                                </td>
-
                                 <td class="text-right">
-                                    @if($hasEntry && $firstEntry)
+                                    @if($firstEntry)
                                         <a href="{{ route('production-entries.edit', $firstEntry) }}" class="erp-link">
-                                            Open Entry
+                                            Open Entries
                                         </a>
-                                    @else
-                                        @if(auth()->user()?->canCreateProductionEntries() && $plan->status !== 'cancelled')
-                                            <form method="POST"
-                                                  action="{{ route('production-entries.create-from-plan', $plan) }}"
-                                                  style="display:inline;">
-                                                @csrf
-                                                <button type="submit" class="erp-action-button">
-                                                    Create Entry
-                                                </button>
-                                            </form>
-                                        @endif
+                                    @endif
 
-                                        @if(auth()->user()?->canManageProductionPlans())
-                                            <a href="{{ route('production-plans.edit', $plan) }}" class="erp-link">
-                                                Edit
-                                            </a>
+                                    @if(auth()->user()?->canManageProductionPlans() && $entriesCount === 0)
+                                        <a href="{{ route('production-plans.edit', $plan) }}" class="erp-link">
+                                            Edit
+                                        </a>
+                                    @endif
 
-                                            <form method="POST"
-                                                  action="{{ route('production-plans.destroy', $plan) }}"
-                                                  style="display:inline;"
-                                                  onsubmit="return confirm('Delete this production plan?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="erp-delete-link">
-                                                    Delete
-                                                </button>
-                                            </form>
-                                        @endif
+                                    @if(auth()->user()?->canManageProductionPlans())
+                                        <form method="POST"
+                                              action="{{ route('production-plans.destroy', $plan) }}"
+                                              style="display:inline;"
+                                              onsubmit="return confirm('Delete this production plan and generated draft entries?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="erp-delete-link">
+                                                Delete
+                                            </button>
+                                        </form>
                                     @endif
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="12" class="erp-empty">
+                                <td colspan="11" class="erp-empty">
                                     No production plans found.
                                 </td>
                             </tr>
@@ -324,20 +318,6 @@
 
         .sort-link:hover {
             color: #2563eb;
-            text-decoration: underline;
-        }
-
-        .erp-action-button {
-            margin-left: 8px;
-            border: 0;
-            background: transparent;
-            color: #2563eb;
-            font-size: 13px;
-            font-weight: 900;
-            cursor: pointer;
-        }
-
-        .erp-action-button:hover {
             text-decoration: underline;
         }
 

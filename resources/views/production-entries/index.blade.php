@@ -4,12 +4,12 @@
             <div>
                 <h2 class="erp-page-title">Production Entries</h2>
                 <div class="erp-page-subtitle">
-                    Draft, finish, approve, and automatically send production entries to ThingsBoard.
+                    Hourly entries generated automatically from shift production plans.
                 </div>
             </div>
 
             <a href="{{ route('production-plans.index') }}" class="erp-btn erp-btn-primary">
-                Create Entry from Plan
+                Create Plan
             </a>
         </div>
     </x-slot>
@@ -150,7 +150,8 @@
                 <table class="erp-table clean-entry-table">
                     <thead>
                         <tr>
-                            <th><a class="sort-link" href="{{ $sortUrl('entry_code') }}">Code {{ $sortIcon('entry_code') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('entry_code') }}">Entry {{ $sortIcon('entry_code') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('plan_code') }}">Plan {{ $sortIcon('plan_code') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('production_date') }}">Date {{ $sortIcon('production_date') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('hour') }}">Hour {{ $sortIcon('hour') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('shift') }}">Shift {{ $sortIcon('shift') }}</a></th>
@@ -161,7 +162,9 @@
                             <th><a class="sort-link" href="{{ $sortUrl('actual_qty') }}">Actual {{ $sortIcon('actual_qty') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('good_qty') }}">Good {{ $sortIcon('good_qty') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('rejected_qty') }}">Rejected {{ $sortIcon('rejected_qty') }}</a></th>
-                            <th><a class="sort-link" href="{{ $sortUrl('chute_qty') }}">Chute {{ $sortIcon('chute_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('chute_1_qty') }}">Chute 1 {{ $sortIcon('chute_1_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('chute_2_qty') }}">Chute 2 {{ $sortIcon('chute_2_qty') }}</a></th>
+                            <th><a class="sort-link" href="{{ $sortUrl('chute_3_qty') }}">Chute 3 {{ $sortIcon('chute_3_qty') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('stop_duration_min') }}">Stop {{ $sortIcon('stop_duration_min') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('oee') }}">OEE {{ $sortIcon('oee') }}</a></th>
                             <th><a class="sort-link" href="{{ $sortUrl('entry_status') }}">Status {{ $sortIcon('entry_status') }}</a></th>
@@ -172,11 +175,10 @@
                     <tbody>
                         @forelse($entries as $entry)
                             <tr>
+                                <td><strong>{{ $entry->entry_code ?? '-' }}</strong></td>
+
                                 <td>
-                                    <strong>{{ $entry->entry_code ?? '-' }}</strong>
-                                    @if($entry->productionPlan?->plan_code)
-                                        <div class="erp-muted-small">{{ $entry->productionPlan?->plan_code }}</div>
-                                    @endif
+                                    <strong>{{ $entry->productionPlan?->plan_code ?? '-' }}</strong>
                                 </td>
 
                                 <td>{{ $entry->production_date?->format('Y-m-d') }}</td>
@@ -206,7 +208,11 @@
 
                                 <td>{{ number_format((float) $entry->rejected_qty, 2) }}</td>
 
-                                <td>{{ number_format((float) $entry->chute_qty, 2) }}</td>
+                                <td>{{ number_format((float) $entry->chute_1_qty, 2) }}</td>
+
+                                <td>{{ number_format((float) $entry->chute_2_qty, 2) }}</td>
+
+                                <td>{{ number_format((float) $entry->chute_3_qty, 2) }}</td>
 
                                 <td>{{ (int) $entry->stop_duration_min }} m</td>
 
@@ -274,7 +280,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="16" class="erp-empty">
+                                <td colspan="19" class="erp-empty">
                                     No production entries found.
                                 </td>
                             </tr>
@@ -332,12 +338,7 @@
         }
 
         .clean-entry-table {
-            min-width: 1350px;
-        }
-
-        .clean-entry-table th,
-        .clean-entry-table td {
-            vertical-align: middle;
+            min-width: 1650px;
         }
 
         .sort-link {
@@ -455,7 +456,7 @@
             }
 
             .clean-entry-table {
-                min-width: 1300px;
+                min-width: 1550px;
             }
         }
 

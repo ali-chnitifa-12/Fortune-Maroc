@@ -1,74 +1,62 @@
 @php
-    $plan = $plan ?? null;
-    $isEdit = $plan && !empty($plan->id);
+    $isEdit = isset($plan);
 
-    $zones = $zones ?? collect();
-    $productionLines = $productionLines ?? collect();
-    $products = $products ?? collect();
-    $shifts = $shifts ?? collect();
-    $statuses = $statuses ?? [
-        'planned' => 'Planned',
-        'in_progress' => 'In Progress',
-        'completed' => 'Completed',
-        'cancelled' => 'Cancelled',
-    ];
-
-    $action = $action ?? ($isEdit ? route('production-plans.update', $plan) : route('production-plans.store'));
-    $method = strtoupper($method ?? ($isEdit ? 'PUT' : 'POST'));
-    $buttonText = $buttonText ?? ($isEdit ? 'Update Production Plan' : 'Save Production Plan');
-
-    $selectedDate = old('plan_date', $plan?->plan_date?->format('Y-m-d') ?? now()->toDateString());
-    $selectedShiftId = old('shift_id', $plan->shift_id ?? '');
     $selectedZoneId = old('zone_id', $plan->zone_id ?? '');
     $selectedLineId = old('production_line_id', $plan->production_line_id ?? '');
     $selectedProductId = old('product_id', $plan->product_id ?? '');
+    $selectedShiftId = old('shift_id', $plan->shift_id ?? '');
     $selectedStatus = old('status', $plan->status ?? 'planned');
 
-    $hourStart = old('hour_start', $plan?->hour_start ? substr($plan->hour_start, 0, 5) : '');
-    $hourEnd = old('hour_end', $plan?->hour_end ? substr($plan->hour_end, 0, 5) : '');
-
-    $linesByZoneUrl = route('production-plans.lines-by-zone', ['zone' => '__ZONE_ID__']);
-    $productsByLineUrl = route('production-plans.products-by-line', ['production_line' => '__LINE_ID__']);
+    $planDate = old('plan_date', isset($plan) && $plan->plan_date ? $plan->plan_date->format('Y-m-d') : now()->format('Y-m-d'));
 @endphp
 
 <div class="erp-card">
-    <form method="POST" action="{{ $action }}" id="productionPlanForm">
+    <form method="POST" action="{{ $isEdit ? route('production-plans.update', $plan) : route('production-plans.store') }}">
         @csrf
 
-        @if($method !== 'POST')
-            @method($method)
+        @if($isEdit)
+            @method('PUT')
         @endif
 
-        <div class="plan-form-grid">
+        <div class="plan-note">
+            <strong>Shift generation logic:</strong>
+            The system generates hourly production entries automatically from the selected shift.
+            Planned Qty is the total shift quantity and will be divided by the generated hours.
+        </div>
+
+        <div class="plan-grid">
+            @if($isEdit)
+                <div>
+                    <label>Plan Code</label>
+                    <input type="text" value="{{ $plan->plan_code ?? '-' }}" readonly>
+                </div>
+            @endif
+
             <div>
-                <label>{{ __('Plan Date') }} <span class="required">*</span></label>
-                <input type="date"
-                       name="plan_date"
-                       value="{{ $selectedDate }}"
-                       required>
+                <label>Plan Date <span class="required">*</span></label>
+                <input type="date" name="plan_date" value="{{ $planDate }}" required>
             </div>
 
             <div>
-                <label>{{ __('Shift') }} <span class="required">*</span></label>
-                <select name="shift_id" id="shift_id" required>
-                    <option value="">{{ __('Select shift') }}</option>
-
+                <label>Shift <span class="required">*</span></label>
+                <select name="shift_id" required>
+                    <option value="">Select shift</option>
                     @foreach($shifts as $shift)
-                        <option value="{{ $shift->id }}"
-                                data-start-time="{{ $shift->start_time ? substr($shift->start_time, 0, 5) : '' }}"
-                                data-end-time="{{ $shift->end_time ? substr($shift->end_time, 0, 5) : '' }}"
-                            {{ (string) $selectedShiftId === (string) $shift->id ? 'selected' : '' }}>
+                        <option value="{{ $shift->id }}" {{ (string) $selectedShiftId === (string) $shift->id ? 'selected' : '' }}>
                             {{ $shift->code }} - {{ $shift->name }}
+                            @if($shift->start_time && $shift->end_time)
+                                ({{ substr($shift->start_time, 0, 5) }} - {{ substr($shift->end_time, 0, 5) }})
+                            @endif
                         </option>
                     @endforeach
                 </select>
+                <div class="erp-help-text">Hours will be generated from shift setup.</div>
             </div>
 
             <div>
-                <label>{{ __('Zone') }} <span class="required">*</span></label>
+                <label>Zone <span class="required">*</span></label>
                 <select name="zone_id" id="zone_id" required>
-                    <option value="">{{ __('Select zone') }}</option>
-
+                    <option value="">Select zone</option>
                     @foreach($zones as $zone)
                         <option value="{{ $zone->id }}" {{ (string) $selectedZoneId === (string) $zone->id ? 'selected' : '' }}>
                             {{ $zone->code }} - {{ $zone->name }}
@@ -78,115 +66,102 @@
             </div>
 
             <div>
-                <label>{{ __('Production Line') }} <span class="required">*</span></label>
+                <label>Production Line <span class="required">*</span></label>
                 <select name="production_line_id" id="production_line_id" required>
-                    <option value="">{{ __('Select zone first') }}</option>
+                    <option value="">Select zone first</option>
                 </select>
-                <div class="erp-help-text">
-                    {{ __('Lines depend on selected zone.') }}
-                </div>
+                <div class="erp-help-text">Lines depend on selected zone.</div>
             </div>
 
             <div>
-                <label>{{ __('Product') }} <span class="required">*</span></label>
+                <label>Product <span class="required">*</span></label>
                 <select name="product_id" id="product_id" required>
-                    <option value="">{{ __('Select line first') }}</option>
+                    <option value="">Select line first</option>
                 </select>
-                <div class="erp-help-text">
-                    {{ __('Products depend on selected line.') }}
-                </div>
+                <div class="erp-help-text">Products depend on selected line.</div>
             </div>
 
             <div>
-                <label>{{ __('Hour Start') }}</label>
-                <input type="time"
-                       name="hour_start"
-                       id="hour_start"
-                       value="{{ $hourStart }}"
-                       readonly>
-                <div class="erp-help-text">
-                    {{ __('Automatically filled from selected shift.') }}
-                </div>
-            </div>
-
-            <div>
-                <label>{{ __('Hour End') }}</label>
-                <input type="time"
-                       name="hour_end"
-                       id="hour_end"
-                       value="{{ $hourEnd }}"
-                       readonly>
-                <div class="erp-help-text">
-                    {{ __('Automatically filled from selected shift.') }}
-                </div>
-            </div>
-
-            <div>
-                <label>{{ __('Planned Qty') }} <span class="required">*</span></label>
+                <label>Total Planned Qty for Shift <span class="required">*</span></label>
                 <input type="number"
+                       name="planned_qty"
                        step="0.01"
                        min="0.01"
-                       name="planned_qty"
                        value="{{ old('planned_qty', $plan->planned_qty ?? '') }}"
                        required>
+                <div class="erp-help-text">This total will be divided by generated hourly entries.</div>
             </div>
 
             <div>
-                <label>{{ __('Target OEE %') }}</label>
+                <label>Target OEE %</label>
                 <input type="number"
+                       name="target_oee"
                        step="0.01"
                        min="0"
                        max="100"
-                       name="target_oee"
                        value="{{ old('target_oee', $plan->target_oee ?? '') }}">
             </div>
 
             <div>
-                <label>{{ __('Responsible') }}</label>
+                <label>Responsible</label>
                 <input type="text"
                        name="responsible"
                        value="{{ old('responsible', $plan->responsible ?? '') }}">
             </div>
 
-            <div>
-                <label>{{ __('Status') }}</label>
-                <select name="status">
-                    @foreach($statuses as $value => $label)
-                        <option value="{{ $value }}" {{ (string) $selectedStatus === (string) $value ? 'selected' : '' }}>
-                            {{ __($label) }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
+            @if($isEdit)
+                <div>
+                    <label>Status <span class="required">*</span></label>
+                    <select name="status" required>
+                        @foreach($statuses as $value => $label)
+                            <option value="{{ $value }}" {{ $selectedStatus === $value ? 'selected' : '' }}>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            @else
+                <input type="hidden" name="status" value="planned">
+            @endif
 
-            <div class="plan-form-full">
-                <label>{{ __('Notes') }}</label>
+            <div class="plan-full">
+                <label>Notes</label>
                 <textarea name="notes" rows="5">{{ old('notes', $plan->notes ?? '') }}</textarea>
             </div>
         </div>
 
-        <div id="formLoadMessage" class="plan-load-message" style="display:none;"></div>
-
-        <div class="plan-form-actions">
+        <div class="erp-form-actions">
             <button type="submit" class="erp-btn erp-btn-primary">
-                {{ __($buttonText) }}
+                {{ $isEdit ? 'Update Production Plan' : 'Create Plan & Generate Entries' }}
             </button>
 
             <a href="{{ route('production-plans.index') }}" class="erp-btn erp-btn-secondary">
-                {{ __('Cancel') }}
+                Cancel
             </a>
         </div>
     </form>
 </div>
 
 <style>
-    .plan-form-grid {
+    .plan-note {
+        margin-bottom: 16px;
+        padding: 12px 14px;
+        border: 1px solid #bfdbfe;
+        border-radius: 12px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.45;
+    }
+
+    .plan-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 14px;
     }
 
-    .plan-form-grid label {
+    .plan-grid label {
         display: block;
         margin-bottom: 6px;
         font-size: 12px;
@@ -194,9 +169,9 @@
         color: #334155;
     }
 
-    .plan-form-grid input,
-    .plan-form-grid select,
-    .plan-form-grid textarea {
+    .plan-grid input,
+    .plan-grid select,
+    .plan-grid textarea {
         width: 100%;
         border: 1px solid #cbd5e1;
         border-radius: 8px;
@@ -206,23 +181,17 @@
         background: #ffffff;
     }
 
-    .plan-form-grid input,
-    .plan-form-grid select {
+    .plan-grid input,
+    .plan-grid select {
         height: 38px;
     }
 
-    .plan-form-grid input[readonly] {
+    .plan-grid input[readonly] {
         background: #f8fafc;
         color: #475569;
-        cursor: not-allowed;
     }
 
-    .plan-form-grid textarea {
-        min-height: 110px;
-        resize: vertical;
-    }
-
-    .plan-form-full {
+    .plan-full {
         grid-column: 1 / -1;
     }
 
@@ -237,270 +206,167 @@
         color: #64748b;
     }
 
-    .plan-load-message {
-        margin-top: 14px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid #bfdbfe;
-        background: #eff6ff;
-        color: #1d4ed8;
-        font-size: 13px;
-        font-weight: 900;
-    }
-
-    .plan-load-message.error {
-        border-color: #fecaca;
-        background: #fee2e2;
-        color: #991b1b;
-    }
-
-    .plan-form-actions {
+    .erp-form-actions {
         margin-top: 18px;
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
+        align-items: center;
     }
 
     @media (max-width: 1100px) {
-        .plan-form-grid {
+        .plan-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
 
-    @media (max-width: 640px) {
-        .plan-form-grid {
+    @media (max-width: 768px) {
+        .plan-grid {
             grid-template-columns: 1fr;
         }
 
-        .plan-form-actions {
+        .erp-form-actions {
             flex-direction: column;
+            align-items: stretch;
         }
 
-        .plan-form-actions .erp-btn {
+        .erp-form-actions .erp-btn {
             width: 100%;
         }
     }
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const zoneSelect = document.getElementById('zone_id');
-        const lineSelect = document.getElementById('production_line_id');
-        const productSelect = document.getElementById('product_id');
-        const shiftSelect = document.getElementById('shift_id');
-        const hourStartInput = document.getElementById('hour_start');
-        const hourEndInput = document.getElementById('hour_end');
-        const messageBox = document.getElementById('formLoadMessage');
+    const selectedZoneId = @json((string) $selectedZoneId);
+    const selectedLineId = @json((string) $selectedLineId);
+    const selectedProductId = @json((string) $selectedProductId);
 
-        const initialZoneId = @json((string) $selectedZoneId);
-        const initialLineId = @json((string) $selectedLineId);
-        const initialProductId = @json((string) $selectedProductId);
+    const zoneSelect = document.getElementById('zone_id');
+    const lineSelect = document.getElementById('production_line_id');
+    const productSelect = document.getElementById('product_id');
 
-        const linesByZoneUrl = @json($linesByZoneUrl);
-        const productsByLineUrl = @json($productsByLineUrl);
+    function resetLines(message = 'Select zone first') {
+        lineSelect.innerHTML = `<option value="">${message}</option>`;
+    }
 
-        function buildUrl(template, key, value) {
-            return template.replace(key, encodeURIComponent(value));
+    function resetProducts(message = 'Select line first') {
+        productSelect.innerHTML = `<option value="">${message}</option>`;
+    }
+
+    function loadLines(zoneId, preselectedLineId = '') {
+        resetLines('Loading lines...');
+        resetProducts('Select line first');
+
+        if (!zoneId) {
+            resetLines();
+            return;
         }
 
-        function showMessage(message, isError = false) {
-            if (!messageBox) {
-                return;
+        fetch(`/production-plans/lines-by-zone/${zoneId}`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Cannot load production lines');
+                }
 
-            if (!message) {
-                messageBox.style.display = 'none';
-                messageBox.textContent = '';
-                messageBox.classList.remove('error');
-                return;
-            }
+                return response.json();
+            })
+            .then(lines => {
+                lineSelect.innerHTML = '<option value="">Select production line</option>';
 
-            messageBox.textContent = message;
-            messageBox.style.display = 'block';
-            messageBox.classList.toggle('error', isError);
-        }
-
-        async function fetchJson(url) {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                credentials: 'same-origin'
-            });
-
-            if (!response.ok) {
-                throw new Error('HTTP ' + response.status);
-            }
-
-            return await response.json();
-        }
-
-        function resetLines(message = '{{ __('Select zone first') }}') {
-            lineSelect.innerHTML = '';
-            lineSelect.disabled = true;
-
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = message;
-            lineSelect.appendChild(option);
-        }
-
-        function resetProducts(message = '{{ __('Select line first') }}') {
-            productSelect.innerHTML = '';
-            productSelect.disabled = true;
-
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = message;
-            productSelect.appendChild(option);
-        }
-
-        function fillShiftHours() {
-            if (!shiftSelect || !hourStartInput || !hourEndInput) {
-                return;
-            }
-
-            const selectedOption = shiftSelect.options[shiftSelect.selectedIndex];
-
-            if (!selectedOption || !selectedOption.value) {
-                hourStartInput.value = '';
-                hourEndInput.value = '';
-                return;
-            }
-
-            hourStartInput.value = selectedOption.getAttribute('data-start-time') || '';
-            hourEndInput.value = selectedOption.getAttribute('data-end-time') || '';
-        }
-
-        async function loadLines(zoneId, selectedLineId = '') {
-            resetLines('{{ __('Loading lines...') }}');
-            resetProducts();
-
-            if (!zoneId) {
-                resetLines();
-                showMessage('');
-                return;
-            }
-
-            try {
-                const url = buildUrl(linesByZoneUrl, '__ZONE_ID__', zoneId);
-                const lines = await fetchJson(url);
-
-                lineSelect.innerHTML = '';
-                lineSelect.disabled = false;
-
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.textContent = '{{ __('Select production line') }}';
-                lineSelect.appendChild(emptyOption);
-
-                if (!Array.isArray(lines) || lines.length === 0) {
-                    resetLines('{{ __('No active lines found for selected zone') }}');
-                    showMessage('{{ __('No active production line found for selected zone.') }}', true);
+                if (!lines.length) {
+                    resetLines('No active line found for this zone');
                     return;
                 }
 
-                lines.forEach(function (line) {
+                lines.forEach(line => {
                     const option = document.createElement('option');
                     option.value = line.id;
-                    option.textContent = (line.code || '-') + ' - ' + (line.name || '-');
+                    option.textContent = `${line.code} - ${line.name}`;
 
-                    if (String(selectedLineId) === String(line.id)) {
+                    if (String(preselectedLineId) === String(line.id)) {
                         option.selected = true;
                     }
 
                     lineSelect.appendChild(option);
                 });
 
-                showMessage('');
-
-                if (lineSelect.value) {
-                    await loadProducts(lineSelect.value, initialProductId);
-                } else {
-                    resetProducts();
+                if (preselectedLineId) {
+                    loadProducts(preselectedLineId, selectedProductId);
                 }
-            } catch (error) {
-                console.error('Production lines loading failed:', error);
-                resetLines('{{ __('Error loading lines') }}');
-                showMessage('{{ __('Unable to load production lines. Please check routes and permissions.') }}', true);
-            }
+            })
+            .catch(error => {
+                console.error(error);
+                resetLines('Error loading lines');
+                resetProducts('Select line first');
+            });
+    }
+
+    function loadProducts(lineId, preselectedProductId = '') {
+        resetProducts('Loading products...');
+
+        if (!lineId) {
+            resetProducts();
+            return;
         }
 
-        async function loadProducts(lineId, selectedProductId = '') {
-            resetProducts('{{ __('Loading products...') }}');
-
-            if (!lineId) {
-                resetProducts();
-                return;
+        fetch(`/production-plans/products-by-line/${lineId}`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Cannot load products');
+                }
 
-            try {
-                const url = buildUrl(productsByLineUrl, '__LINE_ID__', lineId);
-                const products = await fetchJson(url);
+                return response.json();
+            })
+            .then(products => {
+                productSelect.innerHTML = '<option value="">Select product</option>';
 
-                productSelect.innerHTML = '';
-                productSelect.disabled = false;
-
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.textContent = '{{ __('Select product') }}';
-                productSelect.appendChild(emptyOption);
-
-                if (!Array.isArray(products) || products.length === 0) {
-                    resetProducts('{{ __('No active products found for selected line') }}');
-                    showMessage('{{ __('No active product is assigned to selected production line.') }}', true);
+                if (!products.length) {
+                    resetProducts('No active product assigned to this line');
                     return;
                 }
 
-                products.forEach(function (product) {
+                products.forEach(product => {
                     const option = document.createElement('option');
                     option.value = product.id;
+                    option.textContent = `${product.code} - ${product.name}`;
 
-                    const standardQty = product.standard_qty_per_hour
-                        ? ' / Std: ' + product.standard_qty_per_hour
-                        : '';
-
-                    option.textContent = (product.code || '-') + ' - ' + (product.name || '-') + standardQty;
-
-                    if (String(selectedProductId) === String(product.id)) {
+                    if (String(preselectedProductId) === String(product.id)) {
                         option.selected = true;
                     }
 
                     productSelect.appendChild(option);
                 });
-
-                showMessage('');
-            } catch (error) {
-                console.error('Products loading failed:', error);
-                resetProducts('{{ __('Error loading products') }}');
-                showMessage('{{ __('Unable to load products. Please check product assignment to line.') }}', true);
-            }
-        }
-
-        if (zoneSelect) {
-            zoneSelect.addEventListener('change', function () {
-                loadLines(zoneSelect.value, '');
+            })
+            .catch(error => {
+                console.error(error);
+                resetProducts('Error loading products');
             });
-        }
+    }
 
-        if (lineSelect) {
-            lineSelect.addEventListener('change', function () {
-                loadProducts(lineSelect.value, '');
-            });
-        }
+    zoneSelect.addEventListener('change', function () {
+        loadLines(this.value);
+    });
 
-        if (shiftSelect) {
-            shiftSelect.addEventListener('change', fillShiftHours);
-        }
+    lineSelect.addEventListener('change', function () {
+        loadProducts(this.value);
+    });
 
-        resetLines();
-        resetProducts();
-        fillShiftHours();
-
-        if (initialZoneId) {
-            loadLines(initialZoneId, initialLineId);
+    document.addEventListener('DOMContentLoaded', function () {
+        if (selectedZoneId) {
+            loadLines(selectedZoneId, selectedLineId);
+        } else {
+            resetLines();
+            resetProducts();
         }
     });
 </script>

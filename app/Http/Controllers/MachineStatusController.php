@@ -2,200 +2,249 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Machine;
 use App\Models\ProductionDowntime;
 use App\Models\ProductionLine;
+use App\Models\Shift;
 use App\Models\Zone;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MachineStatusController extends Controller
 {
     public function index(Request $request)
     {
-        $selectedDate = $request->input('date', now()->toDateString());
-        $selectedZoneId = $request->input('zone_id');
-        $selectedLineId = $request->input('production_line_id');
-
-        $machinesQuery = Machine::with([
-                'productionLine.zone',
-            ])
-            ->where('is_active', true)
-            ->whereNotNull('production_line_id');
-
-        if ($selectedLineId) {
-            $machinesQuery->where('production_line_id', $selectedLineId);
+        if (!auth()->user()?->canViewMachineStatus()) {
+            abort(403);
         }
 
-        if ($selectedZoneId) {
-            $machinesQuery->whereHas('productionLine', function ($query) use ($selectedZoneId) {
-                $query->where('zone_id', $selectedZoneId);
-            });
-        }
-
-        $machines = $machinesQuery
-            ->orderBy('code')
-            ->get();
-
-        $machineCards = $machines->map(function (Machine $machine) use ($selectedDate) {
-            $downtimes = ProductionDowntime::with([
-                    'productionEntry',
-                    'machine',
-                    'downtimeCategory',
-                    'downtimeReason',
-                ])
-                ->where('machine_id', $machine->id)
-                ->whereHas('productionEntry', function ($query) use ($selectedDate) {
-                    $query->whereDate('production_date', $selectedDate);
-                })
-                ->orderByDesc('started_at')
-                ->get();
-
-            $openDowntime = $downtimes
-                ->whereNull('ended_at')
-                ->first();
-
-            $totalStopMin = (int) $downtimes->sum('duration_min');
-            $stopsCount = (int) $downtimes->count();
-
-            $categories = $downtimes
-                ->filter(fn ($downtime) => $downtime->downtimeCategory)
-                ->groupBy(fn ($downtime) => $downtime->downtimeCategory->name)
-                ->map(fn ($items, $name) => [
-                    'name' => $name,
-                    'count' => $items->count(),
-                    'duration' => (int) $items->sum('duration_min'),
-                ])
-                ->sortByDesc('duration')
-                ->values();
-
-            $reasons = $downtimes
-                ->filter(fn ($downtime) => $downtime->downtimeReason)
-                ->groupBy(fn ($downtime) => $downtime->downtimeReason->name)
-                ->map(fn ($items, $name) => [
-                    'name' => $name,
-                    'count' => $items->count(),
-                    'duration' => (int) $items->sum('duration_min'),
-                ])
-                ->sortByDesc('duration')
-                ->values();
-
-            return [
-                'machine' => $machine,
-                'zone' => $machine->productionLine?->zone,
-                'line' => $machine->productionLine,
-                'status' => $openDowntime ? 'in_repair' : 'active',
-                'openDowntime' => $openDowntime,
-                'downtimes' => $downtimes,
-                'stopsCount' => $stopsCount,
-                'totalStopMin' => $totalStopMin,
-                'categories' => $categories,
-                'reasons' => $reasons,
-            ];
-        });
-
-        $stats = [
-            'machines' => $machineCards->count(),
-            'active' => $machineCards->where('status', 'active')->count(),
-            'in_repair' => $machineCards->where('status', 'in_repair')->count(),
-            'total_stops' => $machineCards->sum('stopsCount'),
-            'total_stop_min' => $machineCards->sum('totalStopMin'),
+        $filters = [
+            'date_from' => $request->get('date_from', now()->toDateString()),
+            'date_to' => $request->get('date_to', now()->toDateString()),
+            'zone_id' => $request->get('zone_id'),
+            'production_line_id' => $request->get('production_line_id'),
+            'shift_id' => $request->get('shift_id'),
         ];
 
-        return view('machine-status.index', [
-            'selectedDate' => $selectedDate,
-            'selectedZoneId' => $selectedZoneId,
-            'selectedLineId' => $selectedLineId,
-            'zones' => Zone::where('is_active', true)->orderBy('code')->get(),
-            'productionLines' => ProductionLine::with('zone')
-                ->where('is_active', true)
-                ->orderBy('code')
-                ->get(),
-            'machineCards' => $machineCards,
-            'stats' => $stats,
-        ]);
-    }
-    private function applyUserScope($query): void
-{
-    $user = auth()->user();
+        $query = ProductionDowntime::query()
+            ->select([
+                'machines.id as machine_id',
+                'machines.code as machine_code',
+                'machines.name as machine_name',
+                'zones.code as zone_code',
+                'zones.name as zone_name',
+                'production_lines.code as line_code',
+                'production_lines.name as line_name',
+                DB::raw('COUNT(production_downtimes.id) as stops_count'),
+                DB::raw('SUM(COALESCE(production_downtimes.duration_min, 0)) as total_downtime_min'),
+                DB::raw('MAX(CASE WHEN production_downtimes.ended_at IS NULL THEN 1 ELSE 0 END) as has_open_stop'),
+                DB::raw('MAX(production_downtimes.started_at) as last_stop_started_at'),
+                DB::raw('MAX(production_downtimes.ended_at) as last_stop_ended_at'),
+            ])
+            ->join('machines', 'machines.id', '=', 'production_downtimes.machine_id')
+            ->leftJoin('production_plans', 'production_plans.id', '=', 'production_downtimes.production_plan_id')
+            ->leftJoin('zones', 'zones.id', '=', 'production_plans.zone_id')
+            ->leftJoin('production_lines', 'production_lines.id', '=', 'production_plans.production_line_id')
+            ->whereNotNull('production_downtimes.production_plan_id')
+            ->groupBy([
+                'machines.id',
+                'machines.code',
+                'machines.name',
+                'zones.code',
+                'zones.name',
+                'production_lines.code',
+                'production_lines.name',
+            ]);
 
-    if (!$user) {
-        $query->whereRaw('1 = 0');
-        return;
-    }
+        $this->applyUserScope($query);
 
-    if ($user->isAdmin() || $user->isResponsableProduction()) {
-        return;
-    }
+        if (!empty($filters['date_from'])) {
+            $query->whereDate('production_plans.plan_date', '>=', $filters['date_from']);
+        }
 
-    if ($user->isOperator()) {
-        $query->whereRaw('1 = 0');
-        return;
-    }
+        if (!empty($filters['date_to'])) {
+            $query->whereDate('production_plans.plan_date', '<=', $filters['date_to']);
+        }
 
-    if ($user->isSupervisor()) {
-        $zoneIds = $user->assignedZoneIds();
+        if (!empty($filters['zone_id']) && auth()->user()->canAccessZone((int) $filters['zone_id'])) {
+            $query->where('production_plans.zone_id', $filters['zone_id']);
+        }
 
-        if (empty($zoneIds)) {
-            $query->whereRaw('1 = 0');
-        } else {
-            $query->whereHas('productionLine', function ($lineQuery) use ($zoneIds) {
-                $lineQuery->whereIn('zone_id', $zoneIds);
+        if (!empty($filters['production_line_id']) && auth()->user()->canAccessProductionLine((int) $filters['production_line_id'])) {
+            $query->where('production_plans.production_line_id', $filters['production_line_id']);
+        }
+
+        if (!empty($filters['shift_id'])) {
+            $query->where('production_plans.shift_id', $filters['shift_id']);
+        }
+
+        $rows = $query
+            ->orderBy('zones.code')
+            ->orderBy('production_lines.code')
+            ->orderBy('machines.code')
+            ->get();
+
+        $openStops = ProductionDowntime::query()
+            ->with([
+                'machine',
+                'productionPlan.zone',
+                'productionPlan.productionLine',
+                'productionPlan.shift',
+                'downtimeCategory',
+                'downtimeReason',
+            ])
+            ->whereNull('ended_at')
+            ->whereNotNull('production_plan_id');
+
+        $this->applyUserScope($openStops);
+
+        if (!empty($filters['date_from'])) {
+            $openStops->whereHas('productionPlan', function ($query) use ($filters) {
+                $query->whereDate('plan_date', '>=', $filters['date_from']);
             });
         }
 
-        return;
+        if (!empty($filters['date_to'])) {
+            $openStops->whereHas('productionPlan', function ($query) use ($filters) {
+                $query->whereDate('plan_date', '<=', $filters['date_to']);
+            });
+        }
+
+        if (!empty($filters['zone_id']) && auth()->user()->canAccessZone((int) $filters['zone_id'])) {
+            $openStops->whereHas('productionPlan', function ($query) use ($filters) {
+                $query->where('zone_id', $filters['zone_id']);
+            });
+        }
+
+        if (!empty($filters['production_line_id']) && auth()->user()->canAccessProductionLine((int) $filters['production_line_id'])) {
+            $openStops->whereHas('productionPlan', function ($query) use ($filters) {
+                $query->where('production_line_id', $filters['production_line_id']);
+            });
+        }
+
+        if (!empty($filters['shift_id'])) {
+            $openStops->whereHas('productionPlan', function ($query) use ($filters) {
+                $query->where('shift_id', $filters['shift_id']);
+            });
+        }
+
+        return view('machine-status.index', [
+            'rows' => $rows,
+            'openStops' => $openStops->latest('started_at')->get(),
+            'zones' => $this->visibleZones(),
+            'productionLines' => $this->visibleProductionLines(),
+            'shifts' => Shift::where('is_active', true)->orderBy('start_time')->get(),
+            'filters' => $filters,
+            'summary' => [
+                'machines_with_stops' => $rows->count(),
+                'total_stops' => (int) $rows->sum('stops_count'),
+                'total_downtime_min' => (int) $rows->sum('total_downtime_min'),
+                'open_stops' => (int) $rows->sum('has_open_stop'),
+            ],
+        ]);
     }
 
-    $query->whereRaw('1 = 0');
-}
+    private function applyUserScope($query): void
+    {
+        $user = auth()->user();
 
-private function visibleZones()
-{
-    $user = auth()->user();
+        if (!$user) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
 
-    $query = Zone::where('is_active', true)->orderBy('code');
+        if ($user->isAdmin() || $user->isResponsableProduction()) {
+            return;
+        }
 
-    if (!$user) {
+        if ($user->isOperator()) {
+            if ($query->getModel() instanceof ProductionDowntime) {
+                $query->whereHas('productionPlan', function ($subQuery) use ($user) {
+                    $subQuery->where('production_line_id', $user->production_line_id ?: 0);
+                });
+            } else {
+                $query->where('production_plans.production_line_id', $user->production_line_id ?: 0);
+            }
+
+            return;
+        }
+
+        if ($user->isSupervisor()) {
+            $zoneIds = $user->assignedZoneIds();
+
+            if (empty($zoneIds)) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            if ($query->getModel() instanceof ProductionDowntime) {
+                $query->whereHas('productionPlan', function ($subQuery) use ($zoneIds) {
+                    $subQuery->whereIn('zone_id', $zoneIds);
+                });
+            } else {
+                $query->whereIn('production_plans.zone_id', $zoneIds);
+            }
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
+    }
+
+    private function visibleZones()
+    {
+        $user = auth()->user();
+
+        $query = Zone::where('is_active', true)->orderBy('code');
+
+        if (!$user) {
+            return collect();
+        }
+
+        if ($user->isAdmin() || $user->isResponsableProduction()) {
+            return $query->get();
+        }
+
+        if ($user->isOperator() && $user->productionLine) {
+            return $query->where('id', $user->productionLine->zone_id)->get();
+        }
+
+        if ($user->isSupervisor()) {
+            $zoneIds = $user->assignedZoneIds();
+
+            return empty($zoneIds)
+                ? collect()
+                : $query->whereIn('id', $zoneIds)->get();
+        }
+
         return collect();
     }
 
-    if ($user->isAdmin() || $user->isResponsableProduction()) {
-        return $query->get();
-    }
+    private function visibleProductionLines()
+    {
+        $user = auth()->user();
 
-    if ($user->isSupervisor()) {
-        $zoneIds = $user->assignedZoneIds();
+        $query = ProductionLine::where('is_active', true)->orderBy('code');
 
-        return empty($zoneIds)
-            ? collect()
-            : $query->whereIn('id', $zoneIds)->get();
-    }
+        if (!$user) {
+            return collect();
+        }
 
-    return collect();
-}
+        if ($user->isAdmin() || $user->isResponsableProduction()) {
+            return $query->get();
+        }
 
-private function visibleProductionLines()
-{
-    $user = auth()->user();
+        if ($user->isOperator()) {
+            return $query->where('id', $user->production_line_id ?: 0)->get();
+        }
 
-    $query = ProductionLine::where('is_active', true)->orderBy('code');
+        if ($user->isSupervisor()) {
+            $zoneIds = $user->assignedZoneIds();
 
-    if (!$user) {
+            return empty($zoneIds)
+                ? collect()
+                : $query->whereIn('zone_id', $zoneIds)->get();
+        }
+
         return collect();
     }
-
-    if ($user->isAdmin() || $user->isResponsableProduction()) {
-        return $query->get();
-    }
-
-    if ($user->isSupervisor()) {
-        $zoneIds = $user->assignedZoneIds();
-
-        return empty($zoneIds)
-            ? collect()
-            : $query->whereIn('zone_id', $zoneIds)->get();
-    }
-
-    return collect();
-}
 }

@@ -1,18 +1,70 @@
 @php
-    $formUser = $user ?? null;
+    /*
+    |--------------------------------------------------------------------------
+    | Resolve edited user safely
+    |--------------------------------------------------------------------------
+    | This form is used for create and edit.
+    | On edit page, we force-load the user from the route parameter:
+    | /users-management/{users_management}/edit
+    */
+
+    $routeUser = request()->route('users_management');
+
+    $formUser = null;
+
+    if ($routeUser instanceof \App\Models\User) {
+        $formUser = $routeUser;
+    } elseif (!empty($routeUser)) {
+        $formUser = \App\Models\User::find((int) $routeUser);
+    }
+
+    if (!$formUser) {
+        $candidateUser = $managedUser ?? $editingUser ?? ($user ?? null);
+
+        if ($candidateUser instanceof \App\Models\User) {
+            $formUser = $candidateUser;
+        }
+    }
+
     $isEdit = $formUser && !empty($formUser->id);
 
-    $zones = $zones ?? collect();
-    $productionLines = $productionLines ?? collect();
+    $zones = $zones ?? \App\Models\Zone::where('is_active', true)->orderBy('code')->get();
+
+    $productionLines = $productionLines
+        ?? \App\Models\ProductionLine::with('zone')
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
+
     $selectedZones = $selectedZones ?? [];
 
+    if ($selectedZones instanceof \Illuminate\Support\Collection) {
+        $selectedZones = $selectedZones->toArray();
+    }
+
     if (!is_array($selectedZones)) {
-        $selectedZones = collect($selectedZones)->map(fn ($id) => (int) $id)->toArray();
+        $selectedZones = [];
+    }
+
+    if ($isEdit && empty($selectedZones) && method_exists($formUser, 'assignedZones')) {
+        try {
+            $selectedZones = $formUser->assignedZones()
+                ->pluck('zones.id')
+                ->map(fn ($id) => (int) $id)
+                ->toArray();
+        } catch (\Throwable $e) {
+            $selectedZones = [];
+        }
+    }
+
+    if ($isEdit && empty($selectedZones) && !empty($formUser->zone_id)) {
+        $selectedZones = [(int) $formUser->zone_id];
     }
 
     $currentRole = old('role', $formUser->role ?? 'operator');
     $currentLineId = old('production_line_id', $formUser->production_line_id ?? '');
     $currentStatus = old('is_active', $isEdit ? (($formUser->is_active ?? true) ? '1' : '0') : '1');
+
     $buttonText = $buttonText ?? ($isEdit ? 'Update User' : 'Save User');
 @endphp
 
@@ -100,12 +152,13 @@
     </div>
 
     <div id="operator_line_block" class="role-block">
-        <label>{{ __('Production Line') }} <span class="required">*</span></label>
+        <label>{{ __('Production Line for Operator') }} <span class="required">*</span></label>
         <select name="production_line_id" id="production_line_id">
             <option value="">{{ __('Select production line') }}</option>
 
             @foreach($productionLines as $line)
-                <option value="{{ $line->id }}" {{ (string) $currentLineId === (string) $line->id ? 'selected' : '' }}>
+                <option value="{{ $line->id }}"
+                    {{ (string) $currentLineId === (string) $line->id ? 'selected' : '' }}>
                     {{ $line->code }} - {{ $line->name }}
                     @if($line->zone)
                         / {{ $line->zone->code }}
@@ -115,34 +168,27 @@
         </select>
 
         <div class="form-help">
-            {{ __('Required only for Operator role.') }}
+            {{ __('Operator can see only this production line.') }}
         </div>
     </div>
 
     <div id="supervisor_zone_block" class="role-block user-form-full">
-        <label>{{ __('Assigned Zones') }} <span class="required">*</span></label>
+        <label>{{ __('Zones for Supervisor') }} <span class="required">*</span></label>
 
         <div class="zone-checkbox-grid">
             @foreach($zones as $zone)
-                @php
-                    $checkedZones = old('zone_ids', $selectedZones);
-                    if (!is_array($checkedZones)) {
-                        $checkedZones = [];
-                    }
-                @endphp
-
                 <label class="zone-checkbox">
                     <input type="checkbox"
                            name="zone_ids[]"
                            value="{{ $zone->id }}"
-                        {{ in_array((int) $zone->id, array_map('intval', $checkedZones), true) ? 'checked' : '' }}>
+                        {{ in_array((int) $zone->id, array_map('intval', $selectedZones), true) ? 'checked' : '' }}>
                     <span>{{ $zone->code }} - {{ $zone->name }}</span>
                 </label>
             @endforeach
         </div>
 
         <div class="form-help">
-            {{ __('Required only for Supervisor role.') }}
+            {{ __('Supervisor can see only selected zones.') }}
         </div>
     </div>
 
@@ -151,7 +197,7 @@
     </div>
 
     <div id="rh_access_block" class="role-info user-form-full">
-        {{ __('RH role has access only to HR modules: HR Dashboard, Employees and Absences.') }}
+        {{ __('RH role has access only to HR modules.') }}
     </div>
 </div>
 
