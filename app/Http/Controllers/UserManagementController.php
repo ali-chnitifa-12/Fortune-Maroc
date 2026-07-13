@@ -6,204 +6,337 @@ use App\Models\ProductionLine;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class UserManagementController extends Controller
 {
-    public function index()
+    private array $roles = [
+        'admin' => 'Admin',
+        'responsable_production' => 'Responsable Production',
+        'supervisor' => 'Supervisor',
+        'operator' => 'Operator',
+        'rh' => 'RH',
+    ];
+
+    public function index(Request $request)
     {
-        $users = User::with([
+        if (!auth()->user()?->canManageUsers()) {
+            abort(403);
+        }
+
+        $filters = [
+            'search' => $request->get('search'),
+            'role' => $request->get('role'),
+            'status' => $request->get('status'),
+        ];
+
+        $query = User::query()
+            ->with([
                 'zone',
-                'productionLine',
+                'productionLine.zone',
                 'assignedZones',
             ])
-            ->orderBy('name')
-            ->get();
+            ->orderBy('name');
+
+        if (!empty($filters['search'])) {
+            $search = trim((string) $filters['search']);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('email', 'like', '%' . $search . '%');
+            });
+        }
+
+        if (!empty($filters['role']) && array_key_exists($filters['role'], $this->roles)) {
+            $query->where('role', $filters['role']);
+        }
+
+        if ($filters['status'] !== null && $filters['status'] !== '') {
+            $query->where('is_active', (int) $filters['status'] === 1);
+        }
+
+        $users = $query
+            ->paginate(20)
+            ->withQueryString();
 
         return view('users-management.index', [
             'users' => $users,
+            'roles' => $this->roles,
+            'filters' => $filters,
         ]);
     }
 
     public function create()
     {
+        if (!auth()->user()?->canManageUsers()) {
+            abort(403);
+        }
+
         return view('users-management.create', [
-            'user' => new User(),
+            'roles' => $this->roles,
             'zones' => Zone::where('is_active', true)->orderBy('code')->get(),
-            'productionLines' => ProductionLine::with('zone')
-                ->where('is_active', true)
-                ->orderBy('code')
-                ->get(),
+            'productionLines' => ProductionLine::with('zone')->where('is_active', true)->orderBy('code')->get(),
             'selectedZones' => [],
         ]);
     }
 
     public function store(Request $request)
     {
-        $data = $this->validateUser($request);
-
-        $role = strtolower(trim($data['role']));
-
-        if ($role === 'operator' && empty($data['production_line_id'])) {
-            return back()->withInput()->withErrors([
-                'production_line_id' => 'Production line is mandatory for operator.',
-            ]);
+        if (!auth()->user()?->canManageUsers()) {
+            abort(403);
         }
 
-        if ($role === 'supervisor' && empty($data['zone_ids'])) {
-            return back()->withInput()->withErrors([
-                'zone_ids' => 'At least one zone is mandatory for supervisor.',
-            ]);
-        }
+        $data = $this->validateUserData($request);
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'role' => $role,
-            'zone_id' => null,
-            'production_line_id' => $role === 'operator' ? $data['production_line_id'] : null,
-            'is_active' => $request->boolean('is_active', true),
-        ]);
+        DB::transaction(function () use ($data) {
+            $accessPayload = $this->buildAccessPayload($data);
 
-        if ($role === 'supervisor') {
-            $user->assignedZones()->sync($data['zone_ids'] ?? []);
-            $firstZoneId = collect($data['zone_ids'] ?? [])->first();
+            $userData = [
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'role' => $data['role'],
+                'zone_id' => $accessPayload['zone_id'],
+                'production_line_id' => $accessPayload['production_line_id'],
+            ];
 
-            $user->update([
-                'zone_id' => $firstZoneId ?: null,
-                'production_line_id' => null,
-            ]);
-        }
+            if (Schema::hasColumn('users', 'is_active')) {
+                $userData['is_active'] = $accessPayload['is_active'];
+            }
 
-        if (in_array($role, ['responsable_production', 'admin', 'rh'], true)) {
-            $user->assignedZones()->sync([]);
-            $user->update([
-                'zone_id' => null,
-                'production_line_id' => null,
-            ]);
-        }
+            $user = User::create($userData);
 
-        return redirect()->route('users-management.index')
+            $this->syncSupervisorZones($user, $data);
+        });
+
+        return redirect()
+            ->route('users-management.index')
             ->with('success', 'User created successfully.');
     }
 
-    public function edit(User $user)
+    public function edit($users_management)
     {
+        if (!auth()->user()?->canManageUsers()) {
+            abort(403);
+        }
+
+        $managedUser = User::query()
+            ->with([
+                'zone',
+                'productionLine.zone',
+                'assignedZones',
+            ])
+            ->findOrFail((int) $users_management);
+
         return view('users-management.edit', [
-            'user' => $user->load(['assignedZones', 'productionLine']),
+            'managedUser' => $managedUser,
+            'user' => $managedUser,
+            'roles' => $this->roles,
             'zones' => Zone::where('is_active', true)->orderBy('code')->get(),
-            'productionLines' => ProductionLine::with('zone')
-                ->where('is_active', true)
-                ->orderBy('code')
-                ->get(),
-            'selectedZones' => $user->assignedZones()->pluck('zones.id')->toArray(),
+            'productionLines' => ProductionLine::with('zone')->where('is_active', true)->orderBy('code')->get(),
+            'selectedZones' => $this->selectedZoneIds($managedUser),
         ]);
     }
 
-    public function update(Request $request, User $user)
+    public function update(Request $request, $users_management)
     {
-        $data = $this->validateUser($request, $user);
-
-        $role = strtolower(trim($data['role']));
-
-        if ($role === 'operator' && empty($data['production_line_id'])) {
-            return back()->withInput()->withErrors([
-                'production_line_id' => 'Production line is mandatory for operator.',
-            ]);
+        if (!auth()->user()?->canManageUsers()) {
+            abort(403);
         }
 
-        if ($role === 'supervisor' && empty($data['zone_ids'])) {
-            return back()->withInput()->withErrors([
-                'zone_ids' => 'At least one zone is mandatory for supervisor.',
-            ]);
-        }
+        $managedUser = User::query()->findOrFail((int) $users_management);
 
-        $payload = [
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'role' => $role,
-            'is_active' => $request->boolean('is_active', true),
-        ];
+        $data = $this->validateUserData($request, $managedUser);
 
-        if (!empty($data['password'])) {
-            $payload['password'] = Hash::make($data['password']);
-        }
+        DB::transaction(function () use ($managedUser, $data) {
+            $accessPayload = $this->buildAccessPayload($data);
 
-        if ($role === 'operator') {
-            $payload['production_line_id'] = $data['production_line_id'];
-            $payload['zone_id'] = null;
-        }
+            $userData = [
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'role' => $data['role'],
+                'zone_id' => $accessPayload['zone_id'],
+                'production_line_id' => $accessPayload['production_line_id'],
+            ];
 
-        if ($role === 'supervisor') {
-            $payload['production_line_id'] = null;
-            $payload['zone_id'] = collect($data['zone_ids'] ?? [])->first() ?: null;
-        }
+            if (!empty($data['password'])) {
+                $userData['password'] = Hash::make($data['password']);
+            }
 
-        if (in_array($role, ['responsable_production', 'admin', 'rh'], true)) {
-            $payload['production_line_id'] = null;
-            $payload['zone_id'] = null;
-        }
+            if (Schema::hasColumn('users', 'is_active')) {
+                $userData['is_active'] = $accessPayload['is_active'];
+            }
 
-        $user->update($payload);
+            $managedUser->update($userData);
 
-        if ($role === 'supervisor') {
-            $user->assignedZones()->sync($data['zone_ids'] ?? []);
-        } else {
-            $user->assignedZones()->sync([]);
-        }
+            $this->syncSupervisorZones($managedUser, $data);
+        });
 
-        return redirect()->route('users-management.index')
+        return redirect()
+            ->route('users-management.index')
             ->with('success', 'User updated successfully.');
     }
 
-    public function destroy(User $user)
+    public function destroy($users_management)
     {
-        if ((int) auth()->id() === (int) $user->id) {
+        if (!auth()->user()?->canManageUsers()) {
+            abort(403);
+        }
+
+        $managedUser = User::query()->findOrFail((int) $users_management);
+
+        if ((int) $managedUser->id === (int) auth()->id()) {
             return back()->withErrors([
-                'user' => 'You cannot delete your own user.',
+                'user' => 'You cannot delete your own account.',
             ]);
         }
 
-        $user->assignedZones()->detach();
-        $user->delete();
+        DB::transaction(function () use ($managedUser) {
+            if (method_exists($managedUser, 'assignedZones')) {
+                $managedUser->assignedZones()->sync([]);
+            }
 
-        return redirect()->route('users-management.index')
+            $managedUser->delete();
+        });
+
+        return redirect()
+            ->route('users-management.index')
             ->with('success', 'User deleted successfully.');
     }
 
-    private function validateUser(Request $request, ?User $user = null): array
+    private function validateUserData(Request $request, ?User $managedUser = null): array
     {
-        $userId = $user?->id;
+        $isUpdate = $managedUser !== null;
 
-        return $request->validate([
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => [
                 'required',
+                'string',
                 'email',
                 'max:255',
-                Rule::unique('users', 'email')->ignore($userId),
+                Rule::unique('users', 'email')->ignore($managedUser?->id),
             ],
-            'password' => [
-                $user ? 'nullable' : 'required',
-                'string',
-                'min:6',
-            ],
-            'role' => [
-                'required',
-                Rule::in([
-                    'operator',
-                    'responsable_production',
-                    'supervisor',
-                    'rh',
-                    'admin',
-                ]),
-            ],
+            'role' => ['required', Rule::in(array_keys($this->roles))],
+            'is_active' => ['required', Rule::in(['0', '1', 0, 1, true, false])],
+            'production_line_id' => ['nullable', 'integer', 'exists:production_lines,id'],
             'zone_ids' => ['nullable', 'array'],
-            'zone_ids.*' => ['nullable', 'exists:zones,id'],
-            'production_line_id' => ['nullable', 'exists:production_lines,id'],
-            'is_active' => ['nullable'],
-        ]);
+            'zone_ids.*' => ['integer', 'exists:zones,id'],
+        ];
+
+        if ($isUpdate) {
+            $rules['password'] = ['nullable', 'string', 'min:6', 'confirmed'];
+        } else {
+            $rules['password'] = ['required', 'string', 'min:6', 'confirmed'];
+        }
+
+        $data = $request->validate($rules);
+
+        if (($data['role'] ?? null) === 'operator' && empty($data['production_line_id'])) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'production_line_id' => 'Production line is required for operator users.',
+                ])
+                ->throwResponse();
+        }
+
+        if (($data['role'] ?? null) === 'supervisor' && empty($data['zone_ids'])) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'zone_ids' => 'At least one zone is required for supervisor users.',
+                ])
+                ->throwResponse();
+        }
+
+        return $data;
+    }
+
+    private function buildAccessPayload(array $data): array
+    {
+        $role = $data['role'];
+        $isActive = (string) ($data['is_active'] ?? '1') === '1';
+
+        $payload = [
+            'zone_id' => null,
+            'production_line_id' => null,
+            'is_active' => $isActive,
+        ];
+
+        if ($role === 'operator') {
+            $line = ProductionLine::query()->findOrFail((int) $data['production_line_id']);
+
+            $payload['production_line_id'] = (int) $line->id;
+            $payload['zone_id'] = $line->zone_id ? (int) $line->zone_id : null;
+
+            return $payload;
+        }
+
+        if ($role === 'supervisor') {
+            $zoneIds = collect($data['zone_ids'] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->toArray();
+
+            $payload['zone_id'] = $zoneIds[0] ?? null;
+            $payload['production_line_id'] = null;
+
+            return $payload;
+        }
+
+        if (in_array($role, ['admin', 'responsable_production', 'rh'], true)) {
+            $payload['zone_id'] = null;
+            $payload['production_line_id'] = null;
+
+            return $payload;
+        }
+
+        return $payload;
+    }
+
+    private function selectedZoneIds(User $user): array
+    {
+        if (method_exists($user, 'assignedZones')) {
+            $zoneIds = $user->assignedZones()
+                ->pluck('zones.id')
+                ->map(fn ($id) => (int) $id)
+                ->toArray();
+
+            if (!empty($zoneIds)) {
+                return array_values(array_unique($zoneIds));
+            }
+        }
+
+        if ($user->zone_id) {
+            return [(int) $user->zone_id];
+        }
+
+        return [];
+    }
+
+    private function syncSupervisorZones(User $user, array $data): void
+    {
+        if (!method_exists($user, 'assignedZones')) {
+            return;
+        }
+
+        if (($data['role'] ?? null) !== 'supervisor') {
+            $user->assignedZones()->sync([]);
+            return;
+        }
+
+        $zoneIds = collect($data['zone_ids'] ?? [])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $user->assignedZones()->sync($zoneIds);
     }
 }

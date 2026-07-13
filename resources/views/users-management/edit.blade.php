@@ -2,49 +2,59 @@
     <x-slot name="header">
         <div class="erp-page-head">
             <div>
-                <h2 class="erp-page-title">Edit User</h2>
+                <h2 class="erp-page-title">{{ __('Edit User') }}</h2>
                 <div class="erp-page-subtitle">
-                    Update user role and plant hierarchy assignment.
+                    {{ __('Update application user role, status, zone or production line access.') }}
                 </div>
             </div>
+
+            <a href="{{ route('users-management.index') }}" class="erp-btn erp-btn-secondary">
+                {{ __('Back to Users') }}
+            </a>
         </div>
     </x-slot>
 
+    @php
+        $editingUser = $managedUser ?? $user ?? null;
+    @endphp
+
     <div class="erp-page-wrap">
-        @if($errors->any())
+        @if(!$editingUser || !$editingUser->id)
             <div class="fortune-error">
-                <ul style="list-style:disc;margin-left:20px;">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
+                {{ __('User not found for edit form.') }}
+            </div>
+        @else
+            @if(session('success'))
+                <div class="fortune-success">
+                    {{ __(session('success')) }}
+                </div>
+            @endif
+
+            @if($errors->any())
+                <div class="fortune-error">
+                    <ul style="list-style:disc;margin-left:20px;">
+                        @foreach($errors->all() as $error)
+                            <li>{{ __($error) }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <div class="erp-card">
+                <form method="POST" action="{{ url('/users-management/' . $editingUser->id) }}">
+                    @csrf
+                    @method('PUT')
+
+                    @include('users-management.form', [
+                        'user' => $editingUser,
+                        'zones' => $zones,
+                        'productionLines' => $productionLines,
+                        'selectedZones' => $selectedZones ?? [],
+                        'buttonText' => 'Update User',
+                    ])
+                </form>
             </div>
         @endif
-
-        <div class="erp-card">
-            <form method="POST" action="{{ route('users-management.update', $user) }}">
-                @csrf
-                @method('PUT')
-
-                @include('users-management.form', [
-                    'user' => $user,
-                    'zones' => $zones,
-                    'productionLines' => $productionLines,
-                    'selectedZones' => $selectedZones,
-                    'isEdit' => true,
-                ])
-
-                <div class="erp-form-actions">
-                    <button type="submit" class="erp-btn erp-btn-primary">
-                        Update User
-                    </button>
-
-                    <a href="{{ route('users-management.index') }}" class="erp-btn erp-btn-secondary">
-                        Cancel
-                    </a>
-                </div>
-            </form>
-        </div>
     </div>
 
     @include('components.erp-page-style')
