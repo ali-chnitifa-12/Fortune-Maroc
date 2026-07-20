@@ -71,9 +71,27 @@ class User extends Authenticatable
         return $this->roleValue() === 'responsable_production';
     }
 
+    public function isRh(): bool
+    {
+        return $this->roleValue() === 'rh';
+    }
+
     public function isOperator(): bool
     {
         return $this->roleValue() === 'operator';
+    }
+
+    public function canViewAbsences(): bool
+    {
+        return in_array($this->roleValue(), [
+            'rh',
+            'admin',
+        ], true);
+    }
+
+    public function canManageAbsences(): bool
+    {
+        return $this->isAdmin();
     }
 
     public function canViewDashboard(): bool
@@ -203,7 +221,7 @@ class User extends Authenticatable
 
     public function assignedZoneIds(): array
     {
-        if ($this->isAdmin() || $this->isResponsableProduction()) {
+        if ($this->isAdmin() || $this->isResponsableProduction() || $this->isRh()) {
             return [];
         }
 
@@ -233,7 +251,7 @@ class User extends Authenticatable
 
     public function canAccessZone(?int $zoneId): bool
     {
-        if ($this->isAdmin() || $this->isResponsableProduction()) {
+        if ($this->isAdmin() || $this->isResponsableProduction() || $this->isRh()) {
             return true;
         }
 
@@ -246,7 +264,7 @@ class User extends Authenticatable
 
     public function canAccessProductionLine(?int $lineId): bool
     {
-        if ($this->isAdmin() || $this->isResponsableProduction()) {
+        if ($this->isAdmin() || $this->isResponsableProduction() || $this->isRh()) {
             return true;
         }
 
@@ -275,6 +293,10 @@ class User extends Authenticatable
     {
         if ($this->isAdmin()) {
             return 'All zones and lines';
+        }
+
+        if ($this->isRh()) {
+            return 'Absences only (RH)';
         }
 
         if ($this->isResponsableProduction()) {

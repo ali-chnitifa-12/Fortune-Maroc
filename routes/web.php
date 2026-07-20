@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\DowntimeCategoryController;
 use App\Http\Controllers\DowntimeReasonController;
 use App\Http\Controllers\LineStatusController;
@@ -179,6 +180,14 @@ Route::middleware(['auth'])->group(function () {
     */
 
     Route::resource('users-management', UserManagementController::class)->except(['show']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Absences (RH)
+    |--------------------------------------------------------------------------
+    */
+
+    Route::resource('absences', AbsenceController::class)->except(['show']);
 
     /*
     |--------------------------------------------------------------------------

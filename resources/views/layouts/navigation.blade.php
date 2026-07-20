@@ -132,6 +132,18 @@
                 </a>
             </div>
         @endif
+
+        @if($user?->canViewAbsences())
+            <div class="menu-section">
+                <div class="menu-section-title">RESSOURCES HUMAINES</div>
+
+                <a href="{{ route('absences.index') }}"
+                   class="menu-link {{ request()->routeIs('absences.*') ? 'active' : '' }}">
+                    <span class="menu-icon" style="background:#fef9c3;color:#ca8a04;">RH</span>
+                    <span class="menu-text">Absences</span>
+                </a>
+            </div>
+        @endif
     </div>
 
     <div class="sidebar-footer">
