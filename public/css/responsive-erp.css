@@ -569,3 +569,71 @@ textarea {
         min-width: 680px;
     }
 }
+
+/* Mobile-only user drawer styles */
+.mobile-only-user-section {
+    display: none;
+    border-top: 1px solid var(--erp-border);
+    margin-top: 20px;
+    padding-top: 15px;
+}
+
+@media (max-width: 1024px) {
+    .mobile-only-user-section {
+        display: block;
+    }
+}
+
+.mobile-user-info {
+    padding: 0 10px;
+    margin-bottom: 10px;
+}
+
+.mobile-user-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--erp-text);
+}
+
+.mobile-role-badge {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--erp-active-bg);
+    color: var(--erp-active-text);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: capitalize;
+}
+
+.mobile-lang-switch {
+    display: flex;
+    gap: 8px;
+    padding: 0 10px;
+    margin-bottom: 12px;
+}
+
+.mobile-lang-switch .lang-btn {
+    flex: 1;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--erp-border);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--erp-muted);
+    text-decoration: none;
+}
+
+.mobile-lang-switch .lang-btn.active {
+    background: var(--erp-primary);
+    color: white;
+    border-color: var(--erp-primary);
+}
+
+.erp-delete-link-menu:hover {
+    background: #fee2e2 !important;
+}

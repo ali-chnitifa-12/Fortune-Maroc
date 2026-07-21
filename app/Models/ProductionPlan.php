@@ -46,10 +46,14 @@ class ProductionPlan extends Model
 
     private static function generateNextCode(): string
     {
+        $orderExpression = DB::getDriverName() === 'pgsql'
+            ? 'CAST(SUBSTRING(plan_code FROM 2) AS INTEGER) DESC'
+            : 'CAST(SUBSTRING(plan_code, 2) AS UNSIGNED) DESC';
+
         $lastCode = DB::table('production_plans')
             ->whereNotNull('plan_code')
             ->where('plan_code', 'like', 'P%')
-            ->orderByRaw('CAST(SUBSTRING(plan_code, 2) AS UNSIGNED) DESC')
+            ->orderByRaw($orderExpression)
             ->value('plan_code');
 
         $nextNumber = 1;

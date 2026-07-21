@@ -82,10 +82,14 @@ class ProductionEntry extends Model
 
     private static function generateNextCode(): string
     {
+        $orderExpression = DB::getDriverName() === 'pgsql'
+            ? 'CAST(SUBSTRING(entry_code FROM 2) AS INTEGER) DESC'
+            : 'CAST(SUBSTRING(entry_code, 2) AS UNSIGNED) DESC';
+
         $lastCode = DB::table('production_entries')
             ->whereNotNull('entry_code')
             ->where('entry_code', 'like', 'E%')
-            ->orderByRaw('CAST(SUBSTRING(entry_code, 2) AS UNSIGNED) DESC')
+            ->orderByRaw($orderExpression)
             ->value('entry_code');
 
         $nextNumber = 1;
