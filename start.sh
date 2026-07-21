@@ -10,6 +10,9 @@ php artisan view:cache
 # Run database migrations
 php artisan migrate --force
 
+# Seed demo users and master data once for the initial production database.
+php artisan db:seed --class=Database\\Seeders\\DemoDataSeeder --force
+
 # Start PHP-FPM in background
 php-fpm -D
 
