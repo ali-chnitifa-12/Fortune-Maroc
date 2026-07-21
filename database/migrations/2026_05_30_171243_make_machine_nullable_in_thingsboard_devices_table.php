@@ -9,7 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         if (Schema::hasColumn('thingsboard_devices', 'machine_id')) {
-            DB::statement('ALTER TABLE thingsboard_devices MODIFY machine_id BIGINT UNSIGNED NULL');
+            if (DB::getDriverName() === 'pgsql') {
+                DB::statement('ALTER TABLE thingsboard_devices ALTER COLUMN machine_id DROP NOT NULL');
+            } else {
+                DB::statement('ALTER TABLE thingsboard_devices MODIFY machine_id BIGINT UNSIGNED NULL');
+            }
         }
     }
 

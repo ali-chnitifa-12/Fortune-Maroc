@@ -10,11 +10,19 @@ return new class extends Migration
     public function up(): void
     {
         if (Schema::hasColumn('production_plans', 'machine_id')) {
-            DB::statement('ALTER TABLE production_plans MODIFY machine_id BIGINT UNSIGNED NULL');
+            if (DB::getDriverName() === 'pgsql') {
+                DB::statement('ALTER TABLE production_plans ALTER COLUMN machine_id DROP NOT NULL');
+            } else {
+                DB::statement('ALTER TABLE production_plans MODIFY machine_id BIGINT UNSIGNED NULL');
+            }
         }
 
         if (Schema::hasColumn('production_entries', 'machine_id')) {
-            DB::statement('ALTER TABLE production_entries MODIFY machine_id BIGINT UNSIGNED NULL');
+            if (DB::getDriverName() === 'pgsql') {
+                DB::statement('ALTER TABLE production_entries ALTER COLUMN machine_id DROP NOT NULL');
+            } else {
+                DB::statement('ALTER TABLE production_entries MODIFY machine_id BIGINT UNSIGNED NULL');
+            }
         }
 
         Schema::table('production_downtimes', function (Blueprint $table) {

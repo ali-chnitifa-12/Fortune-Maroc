@@ -47,15 +47,29 @@ return new class extends Migration
         });
 
         if (Schema::hasColumn('production_downtimes', 'production_entry_id')) {
-            DB::statement('ALTER TABLE production_downtimes MODIFY production_entry_id BIGINT UNSIGNED NULL');
+            if (DB::getDriverName() === 'pgsql') {
+                DB::statement('ALTER TABLE production_downtimes ALTER COLUMN production_entry_id DROP NOT NULL');
+            } else {
+                DB::statement('ALTER TABLE production_downtimes MODIFY production_entry_id BIGINT UNSIGNED NULL');
+            }
         }
 
-        DB::statement("
-            UPDATE production_downtimes pd
-            INNER JOIN production_entries pe ON pe.id = pd.production_entry_id
-            SET pd.production_plan_id = pe.production_plan_id
-            WHERE pd.production_plan_id IS NULL
-        ");
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("
+                UPDATE production_downtimes pd
+                SET production_plan_id = pe.production_plan_id
+                FROM production_entries pe
+                WHERE pe.id = pd.production_entry_id
+                    AND pd.production_plan_id IS NULL
+            ");
+        } else {
+            DB::statement("
+                UPDATE production_downtimes pd
+                INNER JOIN production_entries pe ON pe.id = pd.production_entry_id
+                SET pd.production_plan_id = pe.production_plan_id
+                WHERE pd.production_plan_id IS NULL
+            ");
+        }
 
         Schema::table('production_plans', function (Blueprint $table) {
             if (!Schema::hasColumn('production_plans', 'entries_generated_at')) {
