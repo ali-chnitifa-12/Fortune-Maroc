@@ -83,15 +83,12 @@ class User extends Authenticatable
 
     public function canViewAbsences(): bool
     {
-        return in_array($this->roleValue(), [
-            'rh',
-            'admin',
-        ], true);
+        return $this->isRh();
     }
 
     public function canManageAbsences(): bool
     {
-        return $this->isAdmin();
+        return $this->isRh();
     }
 
     public function canViewDashboard(): bool
